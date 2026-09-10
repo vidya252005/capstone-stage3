@@ -1,0 +1,150 @@
+{
+  "n_cases_total": 1348,
+  "n_cases_scored": 1184,
+  "status_counts": {
+    "ok": 1184,
+    "rationale_out_of_context": 155,
+    "low_rationale_coverage": 9
+  },
+  "accuracy": 0.7158753709198813,
+  "iou": {
+    "mean": 0.26515675675675676,
+    "ci_low": 0.2575201435810811,
+    "ci_high": 0.27292647381756757,
+    "n": 1184
+  },
+  "precision": {
+    "mean": 0.4018220439189189,
+    "ci_low": 0.3920255553209459,
+    "ci_high": 0.4117261000844595,
+    "n": 1184
+  },
+  "recall": {
+    "mean": 0.4018220439189189,
+    "ci_low": 0.3920255553209459,
+    "ci_high": 0.4117261000844595,
+    "n": 1184
+  },
+  "f1": {
+    "mean": 0.4018220439189189,
+    "ci_low": 0.3920255553209459,
+    "ci_high": 0.4117261000844595,
+    "n": 1184
+  },
+  "iou_random": {
+    "mean": 0.16667795608108107,
+    "ci_low": 0.1596294826858108,
+    "ci_high": 0.17386505067567565,
+    "n": 1184
+  },
+  "iou_median": 0.27315,
+  "iou_p05": {
+    "mean": 0.09294087837837837,
+    "ci_low": 0.08983906038851351,
+    "ci_high": 0.09613438555743242,
+    "n": 1184
+  },
+  "iou_p10": {
+    "mean": 0.1476476351351351,
+    "ci_low": 0.14355535050675675,
+    "ci_high": 0.15187036317567568,
+    "n": 1184
+  },
+  "iou_p20": {
+    "mean": 0.20964070945945945,
+    "ci_low": 0.20462472550675675,
+    "ci_high": 0.21463261613175677,
+    "n": 1184
+  },
+  "human_supported_attribution_share": {
+    "mean": 0.39096258445945953,
+    "ci_low": 0.3801693771114865,
+    "ci_high": 0.40200101773648644,
+    "n": 1184
+  },
+  "attribution_ratio_human_nonhuman": {
+    "mean": 2.2335848876689184,
+    "ci_low": 2.1547123981841216,
+    "ci_high": 2.3134280254434123,
+    "n": 1184
+  },
+  "faithfulness": {
+    "mean_gap": 0.42345384037162165,
+    "pass_rate": 0.7255067567567568,
+    "mean_drop_top": 0.46859450253378376,
+    "mean_drop_bottom": 0.045140665540540546
+  },
+  "ig_convergence_delta": {
+    "mean": 0.13803997577948346,
+    "median": 0.10189428925514221,
+    "max": 1.0484191179275513
+  },
+  "rationale_alignment": {
+    "mean_coverage": 0.9859473293768545,
+    "median_coverage": 1.0,
+    "pct_above_95": 0.9651335311572701,
+    "pct_below_50": 0.0066765578635014835
+  },
+  "pct_documents_truncated": 0.327893175074184,
+  "pct_rationale_outside_context": 0.34359364791386565,
+  "iou_by_correctness": {
+    "False": 0.26086111111111115,
+    "True": 0.2667751162790698
+  },
+  "iou_by_correctness_n": {
+    "False": 324,
+    "True": 860
+  },
+  "stage2_join_method": "case_id",
+  "shortcut_vs_iou": {
+    "n": 1069,
+    "pearson_r": -0.06652510493424345,
+    "pearson_p": 0.029634549202447985,
+    "spearman_rho": -0.0517577702650996,
+    "spearman_p": 0.09075977203222142,
+    "shortcut_measure": "shortcut_delta_prob_max"
+  },
+  "iou_by_shortcut_group": {
+    "low_shortcut": {
+      "n": 357,
+      "mean_iou": 0.2726607843137255,
+      "mean_shortcut": 0.16390532212885153
+    },
+    "medium_shortcut": {
+      "n": 356,
+      "mean_iou": 0.2640308988764045,
+      "mean_shortcut": 0.32010337078651685
+    },
+    "high_shortcut": {
+      "n": 356,
+      "mean_iou": 0.24798426966292134,
+      "mean_shortcut": 0.5289424157303371
+    }
+  },
+  "config": {
+    "profile": "paper",
+    "started_utc": "2026-09-09T18:29:57.142285+00:00",
+    "gpu": "NVIDIA L4",
+    "encoder": "law-ai/InLegalBERT",
+    "checkpoint": "/root/app/best_hierarchical_model.pt",
+    "checkpoint_epoch": 4,
+    "checkpoint_best_f1": 0.7318554380600502,
+    "csv": "/root/app/predex_test_deduped.csv",
+    "n_cases_requested": null,
+    "n_cases_loaded": 1346,
+    "ig_steps": 32,
+    "faithfulness": true,
+    "html_limit": 20,
+    "html_written": 20,
+    "stage2_path": "/root/app/predex_ablation_results_named.json",
+    "splits_path": null,
+    "grad_checkpointing": true,
+    "chunking": "512/256/16",
+    "attribution_target": "predicted_class_logit",
+    "limitations": [
+      "Stage-2 JSON may still be from the pre-fix OpenNyAI run (STA/ANALYSIS bug). Treat shortcut correlation as provisional until Stage 2 is regenerated.",
+      "Role attribution shares require predex_opennyai_splits.json.",
+      "Named Stage-2 file was patched from CSV row order if predex_ablation_results_named.json was used."
+    ]
+  }
+}

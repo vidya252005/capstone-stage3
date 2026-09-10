@@ -1,0 +1,64 @@
+====================================================================
+STAGE 3 - SHORTCUT LEARNING AUDIT
+====================================================================
+Cases evaluated        : 1348
+Cases scored           : 1184
+Accuracy               : 71.59%
+
+Case status
+  low_rationale_coverage     9
+  ok                         1184
+  rationale_out_of_context   155
+
+Expert-rationale alignment quality
+  mean coverage            0.986
+  median coverage          1.000
+  cases >=95% coverage     96.5%
+  cases <50% coverage      0.7%
+  documents truncated      32.8%
+  rationale words outside model context  34.4%
+
+Human-rationale alignment (mean [95% CI])
+  IoU @ human-size       0.265  [0.258, 0.273]
+  IoU @ random baseline  0.167  [0.160, 0.174]
+  Precision              0.402  [0.392, 0.412]
+  Recall                 0.402  [0.392, 0.412]
+  F1                     0.402  [0.392, 0.412]
+  IoU median             0.273
+  IoU | correct preds    0.267  (n=860)
+  IoU | incorrect preds  0.261  (n=324)
+  IoU @ top 05%        0.093  [0.090, 0.096]
+  IoU @ top 10%        0.148  [0.144, 0.152]
+  IoU @ top 20%        0.210  [0.205, 0.215]
+
+Threshold-free attribution measures
+  Human-supported attribution share  0.391  [0.380, 0.402]
+  Attribution ratio human:non-human  2.234  [2.155, 2.313]
+
+Faithfulness (masking top vs bottom attributed words)
+  mean logit drop, top     0.4686
+  mean logit drop, bottom  0.0451
+  mean gap (want > 0)      0.4235
+  cases passing            72.6%
+
+Attribution quality
+  IG convergence delta  mean 0.1380 / max 1.0484
+
+Stage-2 shortcut sensitivity vs Stage-3 alignment
+  join      case_id
+  measure   shortcut_delta_prob_max
+  n         1069
+  Spearman  rho = -0.052  (p = 0.0908)
+  Pearson   r   = -0.067  (p = 0.0296)
+
+  Mean IoU by Stage-2 shortcut tercile
+    low_shortcut       n=357   IoU=0.273  (shift=0.164)
+    medium_shortcut    n=356   IoU=0.264  (shift=0.320)
+    high_shortcut      n=356   IoU=0.248  (shift=0.529)
+
+--------------------------------------------------------------------
+Reading this: low IoU on its own is a rationale-alignment finding, not
+proof of shortcut learning. The shortcut claim rests on low alignment
+together with the Stage-2 behavioural sensitivity, and only holds if the
+faithfulness gap above is positive.
+--------------------------------------------------------------------

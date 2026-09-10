@@ -1,0 +1,26 @@
+{
+  "profile": "paper",
+  "started_utc": "2026-09-09T18:29:57.142285+00:00",
+  "gpu": "NVIDIA L4",
+  "encoder": "law-ai/InLegalBERT",
+  "checkpoint": "/root/app/best_hierarchical_model.pt",
+  "checkpoint_epoch": 4,
+  "checkpoint_best_f1": 0.7318554380600502,
+  "csv": "/root/app/predex_test_deduped.csv",
+  "n_cases_requested": null,
+  "n_cases_loaded": 1346,
+  "ig_steps": 32,
+  "faithfulness": true,
+  "html_limit": 20,
+  "html_written": 20,
+  "stage2_path": "/root/app/predex_ablation_results_named.json",
+  "splits_path": null,
+  "grad_checkpointing": true,
+  "chunking": "512/256/16",
+  "attribution_target": "predicted_class_logit",
+  "limitations": [
+    "Stage-2 JSON may still be from the pre-fix OpenNyAI run (STA/ANALYSIS bug). Treat shortcut correlation as provisional until Stage 2 is regenerated.",
+    "Role attribution shares require predex_opennyai_splits.json.",
+    "Named Stage-2 file was patched from CSV row order if predex_ablation_results_named.json was used."
+  ]
+}

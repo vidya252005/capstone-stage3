@@ -1,0 +1,6 @@
+# Extra packages Colab needs for Stage 3. Torch / transformers / pandas
+# are already on the runtime; do not pin them or you will fight Colab's CUDA build.
+captum>=0.7.0
+scipy
+matplotlib
+tqdm
