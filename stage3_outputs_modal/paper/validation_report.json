@@ -1,0 +1,387 @@
+{
+  "discrepancy": {
+    "raw_rows": 1348,
+    "canonical_rows": 1346,
+    "unique_case_id_canonical": 1345,
+    "duplicate_title": "STATE OF KARNATAKA Vs. A.B.MAHESHA ETC",
+    "explanation": "PredEx CSV has 1346 rows but only 1345 unique Case Names: 'STATE OF KARNATAKA Vs. A.B.MAHESHA ETC' appears twice with different Input text (row_index 1151 and 1152). Stage-2 also has two entries under that title. Joining Stage-2 on case_id alone produced a 2\u00d72 Cartesian product (4 rows), so 1346\u22122+4=1348. Canonical table joins on row_index instead (1:1).",
+    "scoring_definition": {
+      "headline_scored_ok": 1182,
+      "iou_non_null": 1191,
+      "iou_on_low_rationale_coverage": 9,
+      "note": "Summary 'Cases scored' counts audit_status=='ok' only. IoU is still written for low_rationale_coverage (computed, then flagged), so CSV iou.notna() is larger (ok + low_coverage). rationale_out_of_context has no IoU."
+    },
+    "exclusions": {
+      "ok": 1182,
+      "rationale_out_of_context": 155,
+      "low_rationale_coverage": 9,
+      "policy": "Cases where fewer than 5 expert-rationale words fall inside the model's 16-chunk window are rationale_out_of_context. Cases where rationale character coverage in the document is <50% are low_rationale_coverage. Neither enters headline IoU means."
+    }
+  },
+  "headline_summary": {
+    "n_cases_total": 1346,
+    "n_cases_scored": 1182,
+    "n_cases_with_iou": 1191,
+    "status_counts": {
+      "ok": 1182,
+      "rationale_out_of_context": 155,
+      "low_rationale_coverage": 9
+    },
+    "accuracy": 0.7154531946508172,
+    "iou": {
+      "mean": 0.26469289340101526,
+      "ci_low": 0.2568535532994924,
+      "ci_high": 0.2724243062605753,
+      "n": 1182
+    },
+    "precision": {
+      "mean": 0.4013163282571912,
+      "ci_low": 0.39157389170896784,
+      "ci_high": 0.4112427411167513,
+      "n": 1182
+    },
+    "recall": {
+      "mean": 0.4013163282571912,
+      "ci_low": 0.39157389170896784,
+      "ci_high": 0.4112427411167513,
+      "n": 1182
+    },
+    "f1": {
+      "mean": 0.4013163282571912,
+      "ci_low": 0.39157389170896784,
+      "ci_high": 0.4112427411167513,
+      "n": 1182
+    },
+    "iou_random": {
+      "mean": 0.1661258883248731,
+      "ci_low": 0.1587273371404399,
+      "ci_high": 0.17335600888324873,
+      "n": 1182
+    },
+    "iou_median": 0.2728,
+    "iou_p05": {
+      "mean": 0.09298663282571912,
+      "ci_low": 0.08991931049069374,
+      "ci_high": 0.09599270727580371,
+      "n": 1182
+    },
+    "iou_p10": {
+      "mean": 0.14767664974619288,
+      "ci_low": 0.1437301649746193,
+      "ci_high": 0.1516828701353638,
+      "n": 1182
+    },
+    "iou_p20": {
+      "mean": 0.20961116751269035,
+      "ci_low": 0.20461933798646362,
+      "ci_high": 0.21458454949238578,
+      "n": 1182
+    },
+    "human_supported_attribution_share": {
+      "mean": 0.3903330795262267,
+      "ci_low": 0.3800501607445008,
+      "ci_high": 0.4012454610829103,
+      "n": 1182
+    },
+    "attribution_ratio_human_nonhuman": {
+      "mean": 2.234562523688664,
+      "ci_low": 2.155452652474619,
+      "ci_high": 2.3140250467428083,
+      "n": 1182
+    },
+    "faithfulness": {
+      "mean_gap": 0.4222362199661591,
+      "pass_rate": 0.7250423011844331,
+      "mean_drop_top": 0.46722630118443315,
+      "mean_drop_bottom": 0.04499008460236887
+    },
+    "ig_convergence_delta": {
+      "mean": 0.13801644490354148,
+      "median": 0.1016356945037841,
+      "max": 1.0484191179275513
+    },
+    "rationale_alignment": {
+      "mean_coverage": 0.985972956909361,
+      "median_coverage": 1.0,
+      "pct_above_95": 0.9650817236255572,
+      "pct_below_50": 0.006686478454680535
+    },
+    "pct_documents_truncated": 0.32838038632986627,
+    "pct_rationale_outside_context": 0.34390635927246627,
+    "iou_by_correctness": {
+      "False": 0.26086111111111115,
+      "True": 0.26613986013986013
+    },
+    "iou_by_correctness_n": {
+      "False": 324,
+      "True": 858
+    },
+    "stage2_join_method": "row_index",
+    "shortcut_vs_iou": {
+      "n": 1067,
+      "pearson_r": -0.06527815926695113,
+      "pearson_p": 0.032999956541463385,
+      "spearman_rho": -0.05061040738295079,
+      "spearman_p": 0.09847169762237666,
+      "shortcut_measure": "shortcut_delta_prob_max"
+    },
+    "iou_by_shortcut_group": {
+      "low_shortcut": {
+        "n": 356,
+        "mean_iou": 0.27303651685393254,
+        "mean_shortcut": 0.16366151685393257
+      },
+      "medium_shortcut": {
+        "n": 355,
+        "mean_iou": 0.2621276056338028,
+        "mean_shortcut": 0.3201743661971831
+      },
+      "high_shortcut": {
+        "n": 356,
+        "mean_iou": 0.24798426966292134,
+        "mean_shortcut": 0.5289424157303371
+      }
+    }
+  },
+  "faithfulness_subgroups": [
+    {
+      "label": "faithful_gap_gt_0",
+      "n_total": 857,
+      "n_ok": 857,
+      "accuracy": 0.7771295215869312,
+      "mean_iou": 0.27307992998833136,
+      "mean_coverage": 0.9911224037339557,
+      "mean_shortcut": 0.35437316129032254
+    },
+    {
+      "label": "nonfaithful_gap_le_0",
+      "n_total": 325,
+      "n_ok": 325,
+      "accuracy": 0.5907692307692308,
+      "mean_iou": 0.24257692307692305,
+      "mean_coverage": 0.989334153846154,
+      "mean_shortcut": 0.2931154109589041
+    }
+  ],
+  "truncation_subgroups_all_statuses": [
+    {
+      "label": "truncated",
+      "n_total": 442,
+      "n_ok": 284,
+      "accuracy": 0.6719457013574661,
+      "mean_iou": 0.16300281690140844,
+      "mean_coverage": 0.9832255656108597,
+      "mean_shortcut": 0.3735954372623574
+    },
+    {
+      "label": "not_truncated",
+      "n_total": 904,
+      "n_ok": 898,
+      "accuracy": 0.7367256637168141,
+      "mean_iou": 0.2968532293986637,
+      "mean_coverage": 0.9873162610619469,
+      "mean_shortcut": 0.32583743781094526
+    }
+  ],
+  "truncation_subgroups_ok_only": [
+    {
+      "label": "truncated_and_ok",
+      "n_total": 284,
+      "n_ok": 284,
+      "accuracy": 0.6830985915492958,
+      "mean_iou": 0.16300281690140844,
+      "mean_coverage": 0.9848257042253523,
+      "mean_shortcut": 0.3735954372623574
+    },
+    {
+      "label": "not_truncated_and_ok",
+      "n_total": 898,
+      "n_ok": 898,
+      "accuracy": 0.7394209354120267,
+      "mean_iou": 0.2968532293986637,
+      "mean_coverage": 0.9924665924276168,
+      "mean_shortcut": 0.32583743781094526
+    }
+  ],
+  "exclusion_length": {
+    "mean_n_words_ok": 2542.984771573604,
+    "mean_n_words_out_of_context": 6031.5161290322585,
+    "pct_ooc_truncated": 1.0,
+    "pct_ok_truncated": 0.24027072758037224
+  },
+  "iou_vs_random_permutation": {
+    "n_cases": 1182,
+    "mean_model_iou": 0.26469289340101526,
+    "mean_random_iou_mc": 0.16630037902652242,
+    "mean_gap_model_minus_random": 0.09839251437449283,
+    "fraction_cases_model_gt_random_mean": 0.8595600676818951,
+    "fraction_cases_model_ge_random_p95": 0.7978003384094755,
+    "permutation_p_one_sided_mean_gap": 0.0,
+    "n_perm": 5000,
+    "n_mc_per_case": 200
+  },
+  "shortcut_iou_correlation_permutation": {
+    "n": 1067,
+    "observed_spearman": -0.05061040738295079,
+    "observed_pearson": -0.06527815926695113,
+    "spearman_p_analytic": 0.09847169762237666,
+    "pearson_p_analytic": 0.032999956541463385,
+    "permutation_p_two_sided_spearman": 0.0928,
+    "null_mean": -0.00043521060205949693,
+    "null_std": 0.030522418981793198,
+    "n_perm": 5000
+  },
+  "shortcut_terciles": [
+    {
+      "label": "low_shortcut",
+      "n": 356,
+      "mean_iou": 0.27303651685393254,
+      "mean_shortcut": 0.16366151685393257
+    },
+    {
+      "label": "medium_shortcut",
+      "n": 355,
+      "mean_iou": 0.2621276056338028,
+      "mean_shortcut": 0.3201743661971831
+    },
+    {
+      "label": "high_shortcut",
+      "n": 356,
+      "mean_iou": 0.24798426966292134,
+      "mean_shortcut": 0.5289424157303371
+    }
+  ],
+  "attribution_stability_proxy": {
+    "note": "Full multi-seed IG re-runs need GPU. As a proxy we report the saved IG convergence delta (completeness gap). Large deltas flag unstable attributions; mean~0.14 / max~1.0 was already in the paper summary.",
+    "n": 1182,
+    "mean": 0.13801644490354148,
+    "median": 0.1016356945037841,
+    "p90": 0.2968159705400467,
+    "max": 1.0484191179275513,
+    "fraction_delta_gt_0_25": 0.1505922165820643,
+    "fraction_delta_gt_0_50": 0.0194585448392555
+  },
+  "manual_heatmap_picks": {
+    "low": [
+      {
+        "case_id": "Smt. Poonam Lata Vs. M.L. Wadhawan &amp; Anr",
+        "iou": 0.0,
+        "correct": true,
+        "faithfulness_gap": -0.162379,
+        "has_html": false
+      },
+      {
+        "case_id": "A.N. Venkatesh  Vs. State Of Karnataka",
+        "iou": 0.0,
+        "correct": true,
+        "faithfulness_gap": -0.238382,
+        "has_html": false
+      },
+      {
+        "case_id": "Saroj Kumar Poddar Vs. State (Nct Of Delhi)",
+        "iou": 0.0,
+        "correct": false,
+        "faithfulness_gap": -0.421732,
+        "has_html": false
+      },
+      {
+        "case_id": "Ajay Aggarwal Vs. Union of India &amp; Others",
+        "iou": 0.0,
+        "correct": false,
+        "faithfulness_gap": 0.896348,
+        "has_html": false
+      },
+      {
+        "case_id": "V. Kishan Rao Vs. Nikhil Super Speciality Hospital",
+        "iou": 0.0,
+        "correct": true,
+        "faithfulness_gap": 0.797905,
+        "has_html": false
+      }
+    ],
+    "medium": [
+      {
+        "case_id": "Kamru Mian Alias Kamru Hassan and Others Vs. State of Bihar",
+        "iou": 0.2729,
+        "correct": true,
+        "faithfulness_gap": 1.010094,
+        "has_html": true
+      },
+      {
+        "case_id": "Ravindersingh @ Ravi Pavar Vs. State Of Gujarat",
+        "iou": 0.272,
+        "correct": false,
+        "faithfulness_gap": 1.785242,
+        "has_html": false
+      },
+      {
+        "case_id": "C.B.I., New Delhi Vs. Abhishek Verma",
+        "iou": 0.2722,
+        "correct": true,
+        "faithfulness_gap": -0.117244,
+        "has_html": false
+      },
+      {
+        "case_id": "Tufail (Alias) Simmi Vs. State of Uttar Pradesh",
+        "iou": 0.2727,
+        "correct": true,
+        "faithfulness_gap": -0.100721,
+        "has_html": false
+      },
+      {
+        "case_id": "Rupchand Chindu Kathewar Vs. State Of Maharashtra",
+        "iou": 0.2727,
+        "correct": false,
+        "faithfulness_gap": 0.233056,
+        "has_html": false
+      }
+    ],
+    "high": [
+      {
+        "case_id": "Nalin Thakur and others Vs. State of Maharashtra",
+        "iou": 0.4145,
+        "correct": false,
+        "faithfulness_gap": 1.171093,
+        "has_html": false
+      },
+      {
+        "case_id": "Nasu Sheikh &amp; Others Vs. State of Bihar",
+        "iou": 0.4147,
+        "correct": true,
+        "faithfulness_gap": 0.561479,
+        "has_html": false
+      },
+      {
+        "case_id": "State Of Andhra Pradesh Vs. Abdul Khader",
+        "iou": 0.4159,
+        "correct": false,
+        "faithfulness_gap": 0.052245,
+        "has_html": false
+      },
+      {
+        "case_id": "Ravikant Bhagoji Dhumal And Ors. Etc Vs. State Of Maharashtra",
+        "iou": 0.4161,
+        "correct": true,
+        "faithfulness_gap": 0.78141,
+        "has_html": false
+      },
+      {
+        "case_id": "VIKRAMJIT KAKATI Vs. THE STATE OF ASSAM",
+        "iou": 0.4165,
+        "correct": true,
+        "faithfulness_gap": 1.854543,
+        "has_html": false
+      }
+    ]
+  },
+  "frozen_definitions": {
+    "dataset": "predex_test_deduped.csv (1346 rows; 1345 unique Case Names)",
+    "case_unit": "CSV row_index (not Case Name)",
+    "iou": "word-level IoU @ human-size top-k on visible words",
+    "headline_filter": "audit_status == ok",
+    "random_baseline": "analytic expected_random_iou + Monte Carlo hypergeometric",
+    "faithfulness": "logit drop top-k minus bottom-k; pass if gap > 0",
+    "shortcut_measure": "shortcut_delta_prob_max over spurious Stage-2 variants",
+    "stage2_join": "row_index (1:1); case_id titles verified where present"
+  }
+}

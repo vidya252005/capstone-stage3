@@ -205,5 +205,61 @@ class TestDocumentSpaceChunking(unittest.TestCase):
         self.assertTrue(selected[5] and selected[6] and selected[7])
 
 
+class Stage2JoinTests(unittest.TestCase):
+    def test_row_index_join_does_not_cartesian_expand_duplicate_titles(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        import pandas as pd
+
+        from stage3.audit import attach_stage2_measures
+
+        stage3 = pd.DataFrame(
+            {
+                "case_id": ["SAME TITLE", "SAME TITLE", "OTHER"],
+                "row_index": [10, 11, 12],
+                "iou": [0.1, 0.2, 0.3],
+            }
+        )
+        stage2 = [
+            {
+                "case_name": "SAME TITLE",
+                "index": 10,
+                "predictions": {
+                    "v0_facts_only": {"label": 0, "confidence": 0.7},
+                    "v25": {"label": 0, "confidence": 0.5},
+                },
+            },
+            {
+                "case_name": "SAME TITLE",
+                "index": 11,
+                "predictions": {
+                    "v0_facts_only": {"label": 0, "confidence": 0.6},
+                    "v25": {"label": 1, "confidence": 0.8},
+                },
+            },
+            {
+                "case_name": "OTHER",
+                "index": 12,
+                "predictions": {
+                    "v0_facts_only": {"label": 1, "confidence": 0.9},
+                    "v25": {"label": 1, "confidence": 0.85},
+                },
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "s2.json"
+            path.write_text(json.dumps(stage2))
+            merged = attach_stage2_measures(stage3, str(path))
+        self.assertEqual(len(merged), 3, "join must stay 1:1 on row_index")
+        self.assertEqual(merged["stage2_join_method"].iloc[0], "row_index")
+        # Distinct Stage-2 baselines for the two same-title rows
+        self.assertNotEqual(
+            merged.loc[merged.row_index == 10, "stage2_baseline_prob"].iloc[0],
+            merged.loc[merged.row_index == 11, "stage2_baseline_prob"].iloc[0],
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

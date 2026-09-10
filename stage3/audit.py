@@ -373,36 +373,84 @@ def attach_stage2_measures(results_df, stage2_json: str):
         rows.append(row)
 
     stage2_df = pd.DataFrame(rows)
-    merged = results_df.merge(
-        stage2_df.drop(columns=["row_index"]), on="case_id", how="left"
-    )
-    matched = int(merged["stage2_baseline_label"].notna().sum())
-    join_method = "case_id"
-    if matched == 0 and "row_index" in results_df:
-        # Older Stage-2 runs recorded every case as "case_0", "case_1", ... so there
-        # is nothing to join on but row position. That is only valid if both stages
-        # read the same CSV in the same row order, so say so loudly rather than
-        # joining silently -- and record it as a column, not just a printed line,
-        # so the assumption survives into the CSV/JSON/paper table rather than
-        # living only in a Colab log nobody re-reads.
-        n_stage2, n_stage3 = len(stage2_df), len(results_df)
-        print(
-            "  WARNING: no Stage-2 case names matched; falling back to row position. "
-            "This is only correct if Stage 2 and Stage 3 were run on the same CSV, "
-            "in the same row order. Stage-2 has {} rows, Stage-3 has {} rows{}. "
-            "Re-run Stage 2 to record real case names so this can be verified "
-            "instead of assumed.".format(
-                n_stage2, n_stage3,
-                "" if n_stage2 == n_stage3 else " -- LENGTH MISMATCH, do not trust this join",
-            )
-        )
+    # Prefer row_index when both sides have it. Case Name is not unique in PredEx
+    # (one title appears twice with slightly different Input text); a case_id-only
+    # merge then Cartesian-expands 2×2 → 4 rows and inflates n_cases (1346→1348).
+    stage3_cols = set(results_df.columns)
+    stage2_measure_cols = [
+        c for c in stage2_df.columns if c not in ("case_id", "row_index")
+    ]
+    if "row_index" in stage3_cols and stage2_df["row_index"].notna().all():
         merged = results_df.merge(
-            stage2_df.drop(columns=["case_id"]), on="row_index", how="left"
+            stage2_df[["row_index"] + stage2_measure_cols + ["case_id"]].rename(
+                columns={"case_id": "stage2_case_id"}
+            ),
+            on="row_index",
+            how="left",
         )
         matched = int(merged["stage2_baseline_label"].notna().sum())
-        join_method = "row_position (unverified -- see warning above)"
+        join_method = "row_index"
+        if "case_id" in merged and "stage2_case_id" in merged:
+            both = merged["stage2_baseline_label"].notna()
+            name_mismatch = int(
+                (
+                    both
+                    & (merged["case_id"].astype(str) != merged["stage2_case_id"].astype(str))
+                ).sum()
+            )
+            if name_mismatch:
+                print(
+                    "  WARNING: {} row_index joins disagree on case_id "
+                    "(Stage-2 vs Stage-3 titles).".format(name_mismatch)
+                )
+        if matched == 0:
+            print(
+                "  WARNING: row_index join matched 0 rows; trying case_id "
+                "(unsafe if titles are duplicated)."
+            )
+            merged = results_df.merge(
+                stage2_df.drop(columns=["row_index"]), on="case_id", how="left"
+            )
+            matched = int(merged["stage2_baseline_label"].notna().sum())
+            join_method = "case_id"
+    else:
+        merged = results_df.merge(
+            stage2_df.drop(columns=["row_index"]), on="case_id", how="left"
+        )
+        matched = int(merged["stage2_baseline_label"].notna().sum())
+        join_method = "case_id"
+        if matched == 0 and "row_index" in results_df:
+            n_stage2, n_stage3 = len(stage2_df), len(results_df)
+            print(
+                "  WARNING: no Stage-2 case names matched; falling back to row position. "
+                "This is only correct if Stage 2 and Stage 3 were run on the same CSV, "
+                "in the same row order. Stage-2 has {} rows, Stage-3 has {} rows{}.".format(
+                    n_stage2,
+                    n_stage3,
+                    ""
+                    if n_stage2 == n_stage3
+                    else " -- LENGTH MISMATCH, do not trust this join",
+                )
+            )
+            merged = results_df.merge(
+                stage2_df.drop(columns=["case_id"]), on="row_index", how="left"
+            )
+            matched = int(merged["stage2_baseline_label"].notna().sum())
+            join_method = "row_position (unverified -- see warning above)"
+
+    if len(merged) != len(results_df):
+        print(
+            "  WARNING: Stage-2 join changed row count {} → {} "
+            "(duplicate keys). Deduplicate before summarising.".format(
+                len(results_df), len(merged)
+            )
+        )
     merged["stage2_join_method"] = join_method
-    print("  Stage-2 measures joined for {}/{} cases ({})".format(matched, len(merged), join_method))
+    print(
+        "  Stage-2 measures joined for {}/{} cases ({})".format(
+            matched, len(merged), join_method
+        )
+    )
     return merged
 
 

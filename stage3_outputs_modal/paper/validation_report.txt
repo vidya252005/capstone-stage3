@@ -1,0 +1,155 @@
+====================================================================
+STAGE 3 - SHORTCUT LEARNING AUDIT
+====================================================================
+Cases evaluated        : 1346
+Cases scored (ok)      : 1182
+Cases with IoU filled  : 1191  (ok + low_rationale_coverage; headline IoU uses ok only)
+Accuracy               : 71.55%
+
+Case status
+  low_rationale_coverage     9
+  ok                         1182
+  rationale_out_of_context   155
+
+Expert-rationale alignment quality
+  mean coverage            0.986
+  median coverage          1.000
+  cases >=95% coverage     96.5%
+  cases <50% coverage      0.7%
+  documents truncated      32.8%
+  rationale words outside model context  34.4%
+
+Human-rationale alignment (mean [95% CI])
+  IoU @ human-size       0.265  [0.257, 0.272]
+  IoU @ random baseline  0.166  [0.159, 0.173]
+  Precision              0.401  [0.392, 0.411]
+  Recall                 0.401  [0.392, 0.411]
+  F1                     0.401  [0.392, 0.411]
+  IoU median             0.273
+  IoU | correct preds    0.266  (n=858)
+  IoU | incorrect preds  0.261  (n=324)
+  IoU @ top 05%        0.093  [0.090, 0.096]
+  IoU @ top 10%        0.148  [0.144, 0.152]
+  IoU @ top 20%        0.210  [0.205, 0.215]
+
+Threshold-free attribution measures
+  Human-supported attribution share  0.390  [0.380, 0.401]
+  Attribution ratio human:non-human  2.235  [2.155, 2.314]
+
+Faithfulness (masking top vs bottom attributed words)
+  mean logit drop, top     0.4672
+  mean logit drop, bottom  0.0450
+  mean gap (want > 0)      0.4222
+  cases passing            72.5%
+
+Attribution quality
+  IG convergence delta  mean 0.1380 / max 1.0484
+
+Stage-2 shortcut sensitivity vs Stage-3 alignment
+  join      row_index
+  measure   shortcut_delta_prob_max
+  n         1067
+  Spearman  rho = -0.051  (p = 0.0985)
+  Pearson   r   = -0.065  (p = 0.033)
+
+  Mean IoU by Stage-2 shortcut tercile
+    low_shortcut       n=356   IoU=0.273  (shift=0.164)
+    medium_shortcut    n=355   IoU=0.262  (shift=0.320)
+    high_shortcut      n=356   IoU=0.248  (shift=0.529)
+
+--------------------------------------------------------------------
+Reading this: low IoU on its own is a rationale-alignment finding, not
+proof of shortcut learning. The shortcut claim rests on low alignment
+together with the Stage-2 behavioural sensitivity, and only holds if the
+faithfulness gap above is positive.
+--------------------------------------------------------------------
+
+====================================================================
+VALIDATION / DISCREPANCY RESOLUTION
+====================================================================
+PredEx CSV has 1346 rows but only 1345 unique Case Names: 'STATE OF KARNATAKA Vs. A.B.MAHESHA ETC' appears twice with different Input text (row_index 1151 and 1152). Stage-2 also has two entries under that title. Joining Stage-2 on case_id alone produced a 2×2 Cartesian product (4 rows), so 1346−2+4=1348. Canonical table joins on row_index instead (1:1).
+
+Canonical PredEx cases     : 1346
+Unique Case Names          : 1345
+Headline scored (ok)       : 1182
+CSV IoU non-null           : 1191
+Summary 'Cases scored' counts audit_status=='ok' only. IoU is still written for low_rationale_coverage (computed, then flagged), so CSV iou.notna() is larger (ok + low_coverage). rationale_out_of_context has no IoU.
+
+Exclusions
+  ok                         1182
+  rationale_out_of_context   155
+  low_rationale_coverage     9
+Cases where fewer than 5 expert-rationale words fall inside the model's 16-chunk window are rationale_out_of_context. Cases where rationale character coverage in the document is <50% are low_rationale_coverage. Neither enters headline IoU means.
+
+Length vs exclusion
+  mean n_words (ok)          2543
+  mean n_words (OOC)         6032
+  pct truncated (ok)         24.0%
+  pct truncated (OOC)        100.0%
+
+Faithfulness subgroups (ok cases)
+  faithful_gap_gt_0: n=857  IoU=0.273  shortcut=0.354
+  nonfaithful_gap_le_0: n=325  IoU=0.243  shortcut=0.293
+
+Truncation (ok cases)
+  truncated_and_ok: n=284  IoU=0.163  cov=0.985  shortcut=0.374  acc=0.683
+  not_truncated_and_ok: n=898  IoU=0.297  cov=0.992  shortcut=0.326  acc=0.739
+
+IoU vs random (Monte Carlo + permutation on mean gap)
+  n_cases: 1182
+  mean_model_iou: 0.2647
+  mean_random_iou_mc: 0.1663
+  mean_gap_model_minus_random: 0.0984
+  fraction_cases_model_gt_random_mean: 0.8596
+  fraction_cases_model_ge_random_p95: 0.7978
+  permutation_p_one_sided_mean_gap: 0.0
+  n_perm: 5000
+  n_mc_per_case: 200
+
+Stage-2 ↔ Stage-3 correlation permutation
+  n: 1067
+  observed_spearman: -0.0506
+  observed_pearson: -0.0653
+  spearman_p_analytic: 0.0985
+  pearson_p_analytic: 0.033
+  permutation_p_two_sided_spearman: 0.0928
+  null_mean: -0.0004
+  null_std: 0.0305
+  n_perm: 5000
+
+Shortcut terciles (canonical)
+  low_shortcut: n=356  IoU=0.273  shortcut=0.164
+  medium_shortcut: n=355  IoU=0.262  shortcut=0.320
+  high_shortcut: n=356  IoU=0.248  shortcut=0.529
+
+Attribution stability proxy (IG convergence delta)
+  Full multi-seed IG re-runs need GPU. As a proxy we report the saved IG convergence delta (completeness gap). Large deltas flag unstable attributions; mean~0.14 / max~1.0 was already in the paper summary.
+  n: 1182
+  mean: 0.138
+  median: 0.1016
+  p90: 0.2968
+  max: 1.0484
+  fraction_delta_gt_0_25: 0.1506
+  fraction_delta_gt_0_50: 0.0195
+
+Manual heatmap picks (inspect explanations/)
+  [low]
+    IoU=0.000 correct=True html=False  Smt. Poonam Lata Vs. M.L. Wadhawan &amp; Anr
+    IoU=0.000 correct=True html=False  A.N. Venkatesh  Vs. State Of Karnataka
+    IoU=0.000 correct=False html=False  Saroj Kumar Poddar Vs. State (Nct Of Delhi)
+    IoU=0.000 correct=False html=False  Ajay Aggarwal Vs. Union of India &amp; Others
+    IoU=0.000 correct=True html=False  V. Kishan Rao Vs. Nikhil Super Speciality Hospital
+  [medium]
+    IoU=0.273 correct=True html=True  Kamru Mian Alias Kamru Hassan and Others Vs. State of Bihar
+    IoU=0.272 correct=False html=False  Ravindersingh @ Ravi Pavar Vs. State Of Gujarat
+    IoU=0.272 correct=True html=False  C.B.I., New Delhi Vs. Abhishek Verma
+    IoU=0.273 correct=True html=False  Tufail (Alias) Simmi Vs. State of Uttar Pradesh
+    IoU=0.273 correct=False html=False  Rupchand Chindu Kathewar Vs. State Of Maharashtra
+  [high]
+    IoU=0.414 correct=False html=False  Nalin Thakur and others Vs. State of Maharashtra
+    IoU=0.415 correct=True html=False  Nasu Sheikh &amp; Others Vs. State of Bihar
+    IoU=0.416 correct=False html=False  State Of Andhra Pradesh Vs. Abdul Khader
+    IoU=0.416 correct=True html=False  Ravikant Bhagoji Dhumal And Ors. Etc Vs. State Of Maharashtra
+    IoU=0.416 correct=True html=False  VIKRAMJIT KAKATI Vs. THE STATE OF ASSAM
+
+STAGE 3 METHODOLOGY — TREAT AS FROZEN after reviewing this report.

@@ -29,10 +29,16 @@ def summarise(results_df, shortcut_column: str = "shortcut_delta_prob_max") -> D
     total = len(results_df)
     status_counts = results_df["audit_status"].value_counts().to_dict()
     scored = results_df[results_df["audit_status"].isin(_HEADLINE_STATUSES)]
+    # IoU is still written for low_rationale_coverage (computed then flagged).
+    # Headline means use audit_status=="ok" only — do not confuse with iou.notna().
+    n_iou_present = (
+        int(results_df["iou"].notna().sum()) if "iou" in results_df else 0
+    )
 
     summary: Dict[str, object] = {
         "n_cases_total": int(total),
         "n_cases_scored": int(len(scored)),
+        "n_cases_with_iou": n_iou_present,
         "status_counts": {str(k): int(v) for k, v in status_counts.items()},
     }
 
@@ -177,7 +183,16 @@ def format_summary(summary: Dict) -> str:
     lines.append("STAGE 3 - SHORTCUT LEARNING AUDIT")
     lines.append("=" * 68)
     lines.append("Cases evaluated        : {}".format(summary.get("n_cases_total")))
-    lines.append("Cases scored           : {}".format(summary.get("n_cases_scored")))
+    lines.append(
+        "Cases scored (ok)      : {}".format(summary.get("n_cases_scored"))
+    )
+    if summary.get("n_cases_with_iou") is not None:
+        lines.append(
+            "Cases with IoU filled  : {}  "
+            "(ok + low_rationale_coverage; headline IoU uses ok only)".format(
+                summary.get("n_cases_with_iou")
+            )
+        )
     accuracy = summary.get("accuracy")
     if accuracy is not None:
         lines.append("Accuracy               : {:.2%}".format(accuracy))

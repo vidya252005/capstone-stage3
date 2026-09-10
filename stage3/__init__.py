@@ -13,22 +13,9 @@ Typical use::
     auditor = ShortcutAuditor(adapter)
     results = auditor.evaluate_dataset(load_predex("./predex_test_deduped.csv"))
 """
-from .adapters import (
-    Attribution,
-    HierarchicalLegalBERTAdapter,
-    ModelAdapter,
-    Prediction,
-    load_tokenizer,
-)
-from .alignment import (
-    DocumentSpace,
-    RationaleAlignment,
-    align_rationale,
-    build_document_space,
-)
-from .audit import CaseAudit, ShortcutAuditor, attach_stage2_measures, load_role_lookup
-from .predex import PredExCase, describe_predex, load_predex, parse_output_field
-from .report import format_summary, save_summary, summarise, write_case_html, write_plots
+from __future__ import annotations
+
+from typing import Any
 
 __all__ = [
     "Attribution",
@@ -54,3 +41,60 @@ __all__ = [
     "write_case_html",
     "write_plots",
 ]
+
+_ADAPTER_NAMES = {
+    "Attribution",
+    "HierarchicalLegalBERTAdapter",
+    "ModelAdapter",
+    "Prediction",
+    "load_tokenizer",
+}
+_ALIGNMENT_NAMES = {
+    "DocumentSpace",
+    "RationaleAlignment",
+    "align_rationale",
+    "build_document_space",
+}
+_AUDIT_NAMES = {
+    "CaseAudit",
+    "ShortcutAuditor",
+    "attach_stage2_measures",
+    "load_role_lookup",
+}
+_PREDEX_NAMES = {
+    "PredExCase",
+    "describe_predex",
+    "load_predex",
+    "parse_output_field",
+}
+_REPORT_NAMES = {
+    "format_summary",
+    "save_summary",
+    "summarise",
+    "write_case_html",
+    "write_plots",
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _ADAPTER_NAMES:
+        from . import adapters
+
+        return getattr(adapters, name)
+    if name in _ALIGNMENT_NAMES:
+        from . import alignment
+
+        return getattr(alignment, name)
+    if name in _AUDIT_NAMES:
+        from . import audit
+
+        return getattr(audit, name)
+    if name in _PREDEX_NAMES:
+        from . import predex
+
+        return getattr(predex, name)
+    if name in _REPORT_NAMES:
+        from . import report
+
+        return getattr(report, name)
+    raise AttributeError("module {!r} has no attribute {!r}".format(__name__, name))
