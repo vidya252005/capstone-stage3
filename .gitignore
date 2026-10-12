@@ -7,6 +7,13 @@ InLegalBERT/
 *.pyc
 .DS_Store
 
-# Large local data / model artifacts (keep on disk; do not commit)
+# Large data files (keep on disk; do not commit; one is over GitHub's 100 MB limit)
 predex_test_deduped.csv
 predex_ablation_results_named.json
+predex_opennyai_raw_v2.json
+predex_opennyai_splits.json
+stage2_outputs/stage3_role_lookup_v2.json
+
+# Stage-2 smoke-test output and the Modal tool's virtual environment
+smoke_test.jsonl
+.venv-modal/

@@ -1,0 +1,3 @@
+Running the TF-IDF role probe (a few minutes)...
+Analysing controls from predex_stage2_controls.jsonl
+Wrote tables, figures and summary to ./stage2_outputs/
