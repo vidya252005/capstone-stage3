@@ -4,6 +4,10 @@
 Rebuilds a canonical 1346-row table (fixes the case_id Cartesian join),
 documents exclusions, and runs faithfulness / truncation / permutation checks
 on the saved paper CSV + Stage-2 JSON.
+
+    python stage3_validate_paper.py                      # v2 run (default)
+    python stage3_validate_paper.py --run-dir stage3_outputs_modal/paper \
+        --stage2 predex_ablation_results_named.json      # the old v1-era run
 """
 from __future__ import annotations
 
@@ -19,12 +23,21 @@ from stage3.metrics import correlate
 from stage3.report import format_summary, summarise
 
 HERE = Path(__file__).resolve().parent
-PAPER = HERE / "stage3_outputs_modal" / "paper"
-RAW_CSV = PAPER / "stage3_results.csv"
-STAGE2 = HERE / "predex_ablation_results_named.json"
-OUT_CSV = PAPER / "stage3_results_canonical.csv"
-OUT_JSON = PAPER / "validation_report.json"
-OUT_TXT = PAPER / "validation_report.txt"
+DEFAULT_RUN_DIR = HERE / "stage3_outputs_modal" / "paper_v2"
+DEFAULT_STAGE2 = HERE / "predex_ablation_results_v2.json"
+
+
+def _configure(run_dir: Path, stage2: Path) -> None:
+    global PAPER, RAW_CSV, STAGE2, OUT_CSV, OUT_JSON, OUT_TXT
+    PAPER = run_dir
+    RAW_CSV = PAPER / "stage3_results.csv"
+    STAGE2 = stage2
+    OUT_CSV = PAPER / "stage3_results_canonical.csv"
+    OUT_JSON = PAPER / "validation_report.json"
+    OUT_TXT = PAPER / "validation_report.txt"
+
+
+_configure(DEFAULT_RUN_DIR, DEFAULT_STAGE2)
 
 RNG = np.random.default_rng(42)
 N_PERM_IOU = 200  # random word selections per case
@@ -58,8 +71,9 @@ def build_canonical() -> pd.DataFrame:
     assert len(base) == 1346, "expected 1346 unique PredEx row_index values, got {}".format(
         len(base)
     )
-    if STAGE2.is_file():
-        base = attach_stage2_measures(base, str(STAGE2))
+    if not STAGE2.is_file():
+        raise FileNotFoundError("Stage-2 results not found: {}".format(STAGE2))
+    base = attach_stage2_measures(base, str(STAGE2))
     return base
 
 
@@ -213,6 +227,14 @@ def pick_heatmap_cases(scored: pd.DataFrame) -> dict:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--run-dir", type=Path, default=DEFAULT_RUN_DIR)
+    parser.add_argument("--stage2", type=Path, default=DEFAULT_STAGE2)
+    args = parser.parse_args()
+    _configure(args.run_dir, args.stage2)
     print("Building canonical 1346-row table…")
     df = build_canonical()
     df.to_csv(OUT_CSV, index=False)
@@ -259,7 +281,9 @@ def main() -> None:
                 "Cases where fewer than 5 expert-rationale words fall inside the "
                 "model's 16-chunk window are rationale_out_of_context. Cases where "
                 "rationale character coverage in the document is <50% are "
-                "low_rationale_coverage. Neither enters headline IoU means."
+                "low_rationale_coverage. Neither enters headline IoU means. In the "
+                "v2 run, out-of-context cases are still attributed (role shares and "
+                "faithfulness), they only lack IoU."
             ),
         },
     }
@@ -323,9 +347,9 @@ def main() -> None:
     ig = scored["ig_convergence_delta"].dropna()
     stability_proxy = {
         "note": (
-            "Full multi-seed IG re-runs need GPU. As a proxy we report the "
-            "saved IG convergence delta (completeness gap). Large deltas flag "
-            "unstable attributions; mean~0.14 / max~1.0 was already in the paper summary."
+            "IG completeness gap |sum(attr) - (F(x) - F(baseline))| in logit units. "
+            "The v2 run also stores it relative to max(|F(x) - F(baseline)|, 1) and "
+            "recomputes cases above 5% with 128 steps."
         ),
         "n": int(len(ig)),
         "mean": float(ig.mean()),
@@ -335,6 +359,14 @@ def main() -> None:
         "fraction_delta_gt_0_25": float((ig > 0.25).mean()),
         "fraction_delta_gt_0_50": float((ig > 0.50).mean()),
     }
+    if "ig_relative_delta" in scored:
+        relative = scored["ig_relative_delta"].dropna()
+        stability_proxy.update({
+            "relative_median": float(relative.median()),
+            "relative_max": float(relative.max()),
+            "fraction_relative_within_5pct": float((relative <= 0.05).mean()),
+            "fraction_recomputed_128_steps": float((scored["ig_steps_used"] > 32).mean()),
+        })
 
     heatmaps = pick_heatmap_cases(scored)
 

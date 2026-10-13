@@ -12,7 +12,7 @@ rationale.
 This is the Stage-3 repo (`stage3/`, `run_stage3.py`, `modal_stage3.py`, `hierarchical_model.py`,
 `test_stage3.py`) with the Stage-2 work added at the top level:
 
-- `STAGE2_RESULTS.md`: read this first. Stage-2 findings, threats to validity, and what each control
+- `STAGE2_RESULTS.md` and `STAGE3_RESULTS.md`: read these first. Stage-2 findings, threats to validity, and what each control
   experiment would mean (Section 7). Figures and tables are in `stage2_outputs/`.
 - `opennyai_ablation_fixed.py` produced the v2 Stage-2 run. Do not modify it: `stage2_controls.py`
   imports its model, chunking, seed and regexes so the two cannot drift.
@@ -33,8 +33,21 @@ This is the Stage-3 repo (`stage3/`, `run_stage3.py`, `modal_stage3.py`, `hierar
   claim came from a v1 bug.
 - Controls A–F are run (Modal, 12 Oct 2026; `predex_stage2_controls.jsonl`, 1,308 cases, 100% anchor
   agreement) and analysed. All six support the leakage claim; see `STAGE2_RESULTS.md` Section 7.1.
-- Later: rerun Stage 3 with `predex_ablation_results_v2.json` and the v2 role lookup (its last run used
-  the v1 Stage-2 file).
+- Stage 3 v2 rerun: done and analysed (13 Oct 2026), results in `STAGE3_RESULTS.md` and
+  `stage3_outputs_modal/paper_v2/`. Changes from the first Stage-3 run (`stage3_outputs_modal/paper/`,
+  which used the v1 Stage-2 file and no role lookup):
+  - IG explains the decision margin (predicted logit minus the other), not one class logit; faithfulness uses
+    the same quantity. Cases with IG completeness error > 5% (floor 1 logit) are redone at 128 steps.
+  - Every case the model can see is attributed, including the 155 whose rationale is outside the window
+    (they get role shares and faithfulness, no IoU).
+  - Pooled roles are post-decisional (`POST_DECISIONAL_ROLES` = ANALYSIS, RATIO, RPC), matching STAGE2 Section 5.
+  - Per-word scores (magnitude + signed), visibility, rationale and role bitmask go to `word_scores.npz`
+    (`stage3/word_store.py`), so all analysis is CPU-only: `python stage3_analysis.py --run-dir <run>`
+    (H1 role shares with a position adjustment, H2 Analysis start vs end, H3 rationale roles + role-matched
+    IoU baseline, H4 per-case link to Stage-2 v2 and controls B/D).
+  - `modal_stage3.py` uses the v2 files, splits cases across GPUs (`--paper` = 8 L4s, run name `paper_v2`) and
+    runs `stage3_analysis.py` at the end. Smoke: `.venv-modal/bin/modal run modal_stage3.py --limit 20 --shards 2`.
+    A run name that already exists on the `stage3-outputs` volume resumes from it.
 
 ## Running the Stage-2 controls on Modal
 

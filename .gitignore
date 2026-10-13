@@ -17,3 +17,7 @@ stage2_outputs/stage3_role_lookup_v2.json
 # Stage-2 smoke-test output and the Modal tool's virtual environment
 smoke_test.jsonl
 .venv-modal/
+
+# Stage-3 zip copies of results already unpacked in stage3_outputs_modal/, and smoke tests
+stage3_outputs_modal/stage3_paper_v2.zip
+stage3_outputs_modal/stage3_smoke_*.zip

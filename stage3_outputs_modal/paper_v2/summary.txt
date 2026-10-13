@@ -1,0 +1,83 @@
+====================================================================
+STAGE 3 - SHORTCUT LEARNING AUDIT
+====================================================================
+Cases evaluated        : 1346
+Cases scored (ok)      : 1182
+Cases with IoU filled  : 1191  (ok + low_rationale_coverage; headline IoU uses ok only)
+Accuracy               : 71.55%
+
+Case status
+  low_rationale_coverage     9
+  ok                         1182
+  rationale_out_of_context   155
+
+Expert-rationale alignment quality
+  mean coverage            0.986
+  median coverage          1.000
+  cases >=95% coverage     96.5%
+  cases <50% coverage      0.7%
+  documents truncated      32.8%
+  rationale words outside model context  34.4%
+
+Human-rationale alignment (mean [95% CI])
+  IoU @ human-size       0.267  [0.259, 0.274]
+  IoU @ random baseline  0.166  [0.159, 0.173]
+  Precision              0.404  [0.394, 0.414]
+  Recall                 0.404  [0.394, 0.414]
+  F1                     0.404  [0.394, 0.414]
+  IoU median             0.277
+  IoU | correct preds    0.268  (n=858)
+  IoU | incorrect preds  0.264  (n=324)
+  IoU @ top 05%        0.094  [0.091, 0.097]
+  IoU @ top 10%        0.149  [0.145, 0.153]
+  IoU @ top 20%        0.211  [0.206, 0.216]
+
+Threshold-free attribution measures
+  Human-supported attribution share  0.393  [0.383, 0.404]
+  Attribution ratio human:non-human  2.263  [2.182, 2.343]
+  Post-decisional attribution share  0.505  [0.494, 0.515]  (n=1346 cases)
+  Post-decisional share of words     0.424  [0.413, 0.434]
+  IG relative delta median 0.023; within 5%: 83.3%; retried: 75.1%
+
+Attribution mass by rhetorical role (vs share of words in that role)
+  ANALYSIS              45.7%  words  41.1%  ratio 1.11
+  FAC                   22.7%  words  28.9%  ratio 0.78
+  PRE_RELIED             9.7%  words  10.0%  ratio 0.97
+  ARG_PETITIONER         8.7%  words   9.5%  ratio 0.91
+  RATIO                  7.8%  words   2.2%  ratio 3.46
+  RLC                    7.5%  words   9.2%  ratio 0.81
+  STA                    7.3%  words  12.3%  ratio 0.59
+  RPC                    5.9%  words   2.4%  ratio 2.48
+  ARG_RESPONDENT         4.1%  words   4.4%  ratio 0.94
+  PRE_NOT_RELIED         2.4%  words   1.2%  ratio 1.96
+  ISSUE                  2.2%  words   2.5%  ratio 0.87
+  NONE                   1.8%  words   1.2%  ratio 1.46
+  PREAMBLE               1.5%  words   1.5%  ratio 1.00
+
+Faithfulness (masking top vs bottom attributed words)
+  mean logit drop, top     1.0306
+  mean logit drop, bottom  0.1064
+  mean gap (want > 0)      0.9242
+  cases passing            75.0%
+
+Attribution quality
+  IG convergence delta  mean 0.0484 / max 0.3417
+
+Stage-2 shortcut sensitivity vs Stage-3 alignment
+  join      row_index
+  measure   shortcut_delta_prob_max
+  n         1149
+  Spearman  rho = -0.054  (p = 0.068)
+  Pearson   r   = -0.060  (p = 0.043)
+
+  Mean IoU by Stage-2 shortcut tercile
+    low_shortcut       n=383   IoU=0.276  (shift=0.170)
+    medium_shortcut    n=383   IoU=0.265  (shift=0.332)
+    high_shortcut      n=383   IoU=0.251  (shift=0.548)
+
+--------------------------------------------------------------------
+Reading this: low IoU on its own is a rationale-alignment finding, not
+proof of shortcut learning. The shortcut claim rests on low alignment
+together with the Stage-2 behavioural sensitivity, and only holds if the
+faithfulness gap above is positive.
+--------------------------------------------------------------------

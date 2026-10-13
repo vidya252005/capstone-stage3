@@ -261,5 +261,86 @@ class Stage2JoinTests(unittest.TestCase):
         )
 
 
+class V2Stage2Tests(unittest.TestCase):
+    def test_reference_and_counterfactual_variants_not_pooled(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        import pandas as pd
+
+        from stage3.audit import attach_stage2_measures
+
+        predictions = {"v0_facts_only": {"label": 0, "confidence": 0.9},
+                       "v_analysis_only": {"label": 0, "confidence": 0.8}}
+        # Big moves in reference/counterfactual variants must not count as shortcuts.
+        for name in ("v_raw", "v_full", "v_facts_masked", "v_sta_only_cf", "v_counterfactual"):
+            predictions[name] = {"label": 1, "confidence": 0.99}
+        stage3 = pd.DataFrame([{"case_id": "A", "row_index": 0}])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "s2.json"
+            path.write_text(json.dumps([{"case_name": "A", "index": 0, "predictions": predictions}]))
+            merged = attach_stage2_measures(stage3, str(path))
+        self.assertAlmostEqual(merged["shortcut_delta_prob_max"].iloc[0], 0.1, places=6)
+        self.assertIn("delta_prob_v_raw", merged.columns)
+
+
+class RoleLookupTests(unittest.TestCase):
+    def test_duplicate_titles_get_their_own_roles(self):
+        from types import SimpleNamespace
+
+        from stage3.audit import ShortcutAuditor
+
+        lookup = {"SAME": {"FAC": ["second case facts"]},
+                  "0": {"FAC": ["first case facts"]},
+                  "1": {"FAC": ["second case facts"]}}
+        auditor = ShortcutAuditor(adapter=None, role_lookup=lookup)
+        seen = []
+
+        class Space:
+            def words_in_spans(self, spans):
+                seen.append(spans)
+                return np.zeros(1, dtype=bool)
+
+        import stage3.audit as audit_module
+
+        original = audit_module.align_rationale
+        audit_module.align_rationale = lambda document, sentences: SimpleNamespace(spans=sentences)
+        try:
+            auditor._role_masks(SimpleNamespace(case_id="SAME", index=0, document=""), Space())
+        finally:
+            audit_module.align_rationale = original
+        self.assertEqual(seen, [["first case facts"]])
+
+
+class WordStoreTests(unittest.TestCase):
+    def test_round_trip_and_role_bits(self):
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        from stage3.metrics import role_attribution_shares
+        from stage3.word_store import load_store, pack_case, role_mask, save_store
+
+        fac = np.array([True, True, False, False])
+        ana = np.array([False, True, True, False])
+        audit = SimpleNamespace(
+            word_scores=np.array([0.5, -1.0, 2.0, 0.0]),
+            eligible=np.array([True, True, True, False]),
+            human_mask=np.array([False, True, False, False]),
+            role_masks={"FAC": fac, "ANALYSIS": ana},
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "w.npz")
+            save_store(path, {7: pack_case(audit)})
+            back = load_store(path)[7]
+        np.testing.assert_array_equal(role_mask(back["roles"], "FAC"), fac)
+        np.testing.assert_array_equal(role_mask(back["roles"], "ANALYSIS"), ana)
+        np.testing.assert_array_equal(back["human"], audit.human_mask)
+        shares = role_attribution_shares(back["scores"], {"FAC": fac}, back["eligible"], ["FAC"])
+        self.assertAlmostEqual(shares["role_share_FAC"], 1.5 / 3.5, places=6)
+        self.assertAlmostEqual(shares["role_words_FAC"], 2 / 3, places=6)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

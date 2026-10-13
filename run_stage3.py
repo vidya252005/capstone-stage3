@@ -14,7 +14,7 @@ checkpoint where a problem is still cheap to find.
     python run_stage3.py audit --limit 50
 
     # 4. the full benchmark, joined to the Stage-2 results
-    python run_stage3.py audit --stage2 predex_ablation_results.json
+    python run_stage3.py audit --stage2 predex_ablation_results_v2.json
 """
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ import sys
 DEFAULT_CSV = "./predex_test_deduped.csv"
 DEFAULT_CHECKPOINT = "./best_hierarchical_model.pt"
 DEFAULT_MODEL = "law-ai/InLegalBERT"
-DEFAULT_SPLITS = "./predex_opennyai_splits.json"
-DEFAULT_STAGE2 = "./predex_ablation_results.json"
+DEFAULT_SPLITS = "./stage2_outputs/stage3_role_lookup_v2.json"
+DEFAULT_STAGE2 = "./predex_ablation_results_v2.json"
 DEFAULT_OUTDIR = "./stage3_outputs"
 
 
@@ -110,6 +110,7 @@ def cmd_audit(args) -> int:
             word_aggregation=args.word_aggregation,
             gradient_checkpointing=args.grad_checkpointing,
             allow_untrained=allow_untrained,
+            target_mode=args.target_mode,
         )
     except FileNotFoundError as error:
         print("\nCannot start the audit:\n\n{}\n".format(error))
@@ -165,6 +166,7 @@ def cmd_audit(args) -> int:
     summary["config"] = {
         "attribution_method": args.method,
         "ig_steps": args.ig_steps,
+        "attribution_target": args.target_mode,
         "baseline": args.baseline,
         "chunk_aggregation": args.chunk_aggregation,
         "word_aggregation": args.word_aggregation,
@@ -216,6 +218,9 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--method", default="integrated_gradients",
                        choices=["integrated_gradients", "gradient_x_input"])
     audit.add_argument("--ig-steps", type=int, default=32, dest="ig_steps")
+    audit.add_argument("--target-mode", default="margin", choices=["margin", "logit"],
+                       dest="target_mode",
+                       help="explain the decision margin (default) or one class logit")
     audit.add_argument("--ig-batch", type=int, default=1, dest="ig_batch")
     audit.add_argument("--baseline", default="pad", choices=["pad", "zero"])
     audit.add_argument("--chunk-aggregation", default="mean", choices=["mean", "max"],

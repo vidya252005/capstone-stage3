@@ -23,7 +23,9 @@ from .config import (
     GRU_HIDDEN,
     GRU_LAYERS,
     IG_INTERNAL_BATCH,
+    IG_MAX_RELATIVE_DELTA,
     IG_STEPS,
+    IG_STEPS_RETRY,
     NUM_CLASSES,
     UNFREEZE_LAYERS,
 )
@@ -44,6 +46,13 @@ class Prediction:
     def probability(self, target: int) -> float:
         return float(self.probabilities[target])
 
+    def margin(self, target: int) -> float:
+        """Target logit minus the other class's logit: the log-odds of the decision."""
+        return float(self.logits[target] - self.logits[1 - target])
+
+    def score(self, target: int, mode: str = "logit") -> float:
+        return self.margin(target) if mode == "margin" else self.logit(target)
+
 
 @dataclass
 class Attribution:
@@ -55,14 +64,21 @@ class Attribution:
     target: int
     method: str
     convergence_delta: Optional[float] = None
+    target_mode: str = "logit"
+    relative_delta: Optional[float] = None
+    steps_used: Optional[int] = None
 
     def to_dict(self) -> Dict[str, object]:
+        def _num(value):
+            return None if value is None else float(value)
+
         return {
             "attribution_method": self.method,
+            "attribution_target": self.target_mode,
             "attribution_target_class": int(self.target),
-            "ig_convergence_delta": (
-                None if self.convergence_delta is None else float(self.convergence_delta)
-            ),
+            "ig_convergence_delta": _num(self.convergence_delta),
+            "ig_relative_delta": _num(self.relative_delta),
+            "ig_steps_used": self.steps_used,
         }
 
 
@@ -189,10 +205,12 @@ class ModelAdapter(ABC):
 class HierarchicalLegalBERTAdapter(ModelAdapter):
     """Adapter for the Stage-1 InLegalBERT + Bi-GRU model.
 
-    Attribution targets the **logit** of the chosen class, not its softmax
-    probability. Softmax is a function of both logits, so attributing through it
-    mixes "what supported this class" with "what suppressed the other one"; the raw
-    logit answers the question the audit is actually asking.
+    By default (``target_mode="margin"``) attribution explains the **logit margin**,
+    the chosen class's logit minus the other class's. For two classes the softmax
+    probability is sigmoid(margin), so the margin is exactly the log-odds the
+    decision rests on, without the saturation of the probability. A single class
+    logit (``target_mode="logit"``, the setting of the first Stage-3 run) also credits
+    text that raises both logits equally, which cannot change the decision.
     """
 
     def __init__(
@@ -207,7 +225,12 @@ class HierarchicalLegalBERTAdapter(ModelAdapter):
         word_aggregation: str = "sum",
         model_name: str = "HierarchicalLegalBERT",
         gradient_checkpointing: bool = False,
+        target_mode: str = "margin",
+        ig_steps_retry: int = IG_STEPS_RETRY,
+        ig_max_relative_delta: float = IG_MAX_RELATIVE_DELTA,
     ) -> None:
+        if target_mode not in ("margin", "logit"):
+            raise ValueError("target_mode must be 'margin' or 'logit'")
         self.model = model
         self.tokenizer = tokenizer
         self.device = device
@@ -216,6 +239,9 @@ class HierarchicalLegalBERTAdapter(ModelAdapter):
         self.baseline = baseline
         self.chunk_aggregation = chunk_aggregation
         self.word_aggregation = word_aggregation
+        self.target_mode = target_mode
+        self.ig_steps_retry = ig_steps_retry
+        self.ig_max_relative_delta = ig_max_relative_delta
         self._name = model_name
         self.model.eval()
         if gradient_checkpointing:
@@ -353,9 +379,21 @@ class HierarchicalLegalBERTAdapter(ModelAdapter):
         if target is None:
             target = self.predict(document, space).label
 
+        relative_delta, steps_used = None, None
         with self._attribution_mode():
             if method == "integrated_gradients":
-                chunk_signed, delta = self._integrated_gradients(space, target)
+                chunk_signed, delta, relative_delta = self._integrated_gradients(
+                    space, target, self.ig_steps
+                )
+                steps_used = self.ig_steps
+                if (
+                    relative_delta > self.ig_max_relative_delta
+                    and self.ig_steps_retry > self.ig_steps
+                ):
+                    retry = self._integrated_gradients(space, target, self.ig_steps_retry)
+                    if retry[2] < relative_delta:
+                        chunk_signed, delta, relative_delta = retry
+                        steps_used = self.ig_steps_retry
             elif method == "gradient_x_input":
                 chunk_signed, delta = self._gradient_x_input(space, target)
             else:
@@ -385,6 +423,9 @@ class HierarchicalLegalBERTAdapter(ModelAdapter):
             target=int(target),
             method=method,
             convergence_delta=delta,
+            target_mode=self.target_mode,
+            relative_delta=relative_delta,
+            steps_used=steps_used,
         )
 
     # ── attribution back-ends ───────────────────────────────────────────────
@@ -407,9 +448,14 @@ class HierarchicalLegalBERTAdapter(ModelAdapter):
         return torch.where(keep, ids, torch.full_like(ids, pad_id))
 
     def _forward_for_captum(self, embeds, attention_mask):
-        return self.model.forward_from_embeddings(embeds, attention_mask)
+        logits = self.model.forward_from_embeddings(embeds, attention_mask)
+        if self.target_mode == "margin":
+            # Column c becomes logit_c - logit_(other); selecting the target column
+            # then gives the decision margin. Two classes only (NUM_CLASSES == 2).
+            return logits - logits.flip(-1)
+        return logits
 
-    def _integrated_gradients(self, space: DocumentSpace, target: int):
+    def _integrated_gradients(self, space: DocumentSpace, target: int, n_steps: int):
         from captum.attr import IntegratedGradients
 
         ids, mask = self._batch(space)
@@ -425,19 +471,29 @@ class HierarchicalLegalBERTAdapter(ModelAdapter):
             baselines=baselines,
             additional_forward_args=(mask,),
             target=int(target),
-            n_steps=self.ig_steps,
+            n_steps=n_steps,
             internal_batch_size=self.ig_internal_batch,
             return_convergence_delta=True,
         )
+        # Completeness: attributions should sum to F(input) - F(baseline). The raw
+        # delta is in logit units, so it is judged relative to that difference, with
+        # a floor of 1 so a near-zero difference does not inflate a tiny error.
+        with torch.no_grad():
+            gap = (
+                self._forward_for_captum(embeds, mask)[0, int(target)]
+                - self._forward_for_captum(baselines, mask)[0, int(target)]
+            ).item()
+        delta_abs = float(delta.abs().max().item())
+        relative = delta_abs / max(abs(gap), 1.0)
         # [1, chunks, seq, hidden] -> [chunks, seq]; the embedding dimension is summed
         # rather than abs-summed so the sign of the contribution survives.
         chunk_scores = attributions.sum(dim=-1)[0].detach().cpu().numpy()
-        return chunk_scores, float(delta.abs().max().item())
+        return chunk_scores, delta_abs, float(relative)
 
     def _gradient_x_input(self, space: DocumentSpace, target: int):
         ids, mask = self._batch(space)
         embeds = self._embed(ids).detach().requires_grad_(True)
-        logits = self._forward_for_captum(embeds, mask)
+        logits = self._forward_for_captum(embeds, mask)  # margin or logit, per target_mode
         self.model.zero_grad(set_to_none=True)
         logits[0, int(target)].backward()
         grad = embeds.grad

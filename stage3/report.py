@@ -66,16 +66,44 @@ def summarise(results_df, shortcut_column: str = "shortcut_delta_prob_max") -> D
         summary["attribution_ratio_human_nonhuman"] = bootstrap_ci(
             scored["attribution_ratio_human_nonhuman"].tolist()
         )
-    if "shortcut_attribution_share" in scored:
-        summary["shortcut_attribution_share"] = bootstrap_ci(
-            scored["shortcut_attribution_share"].tolist()
+    # Role measures do not depend on the expert rationale, so they use every case
+    # with an attribution, not only the rationale-scored ones.
+    attributed = (
+        results_df[results_df["ig_convergence_delta"].notna()]
+        if "ig_convergence_delta" in results_df
+        else scored
+    )
+    summary["n_cases_attributed"] = int(len(attributed))
+    if "post_decisional_attribution_share" in attributed:
+        summary["post_decisional_attribution_share"] = bootstrap_ci(
+            attributed["post_decisional_attribution_share"].tolist()
         )
+        summary["post_decisional_word_share"] = bootstrap_ci(
+            attributed["post_decisional_word_share"].tolist()
+        )
+    if "ig_relative_delta" in attributed:
+        relative = _finite(attributed["ig_relative_delta"])
+        steps = _finite(attributed.get("ig_steps_used", []))
+        if len(relative):
+            summary["ig_relative_delta"] = {
+                "median": float(np.median(relative)),
+                "share_within_5pct": float(np.mean(relative <= 0.05)),
+                "share_retried": (
+                    float(np.mean(steps > steps.min())) if len(steps) else None
+                ),
+            }
 
-    role_columns = sorted(c for c in scored.columns if c.startswith("role_share_"))
+    role_columns = sorted(c for c in attributed.columns if c.startswith("role_share_"))
     if role_columns:
         summary["role_attribution_shares"] = {
-            c.replace("role_share_", ""): float(np.nanmean(_finite(scored[c])))
+            c.replace("role_share_", ""): float(np.nanmean(_finite(attributed[c])))
             for c in role_columns
+        }
+        word_columns = {c: "role_words_" + c[len("role_share_"):] for c in role_columns}
+        summary["role_word_shares"] = {
+            c.replace("role_share_", ""): float(np.nanmean(_finite(attributed[w])))
+            for c, w in word_columns.items()
+            if w in attributed
         }
 
     if "faithfulness_gap" in scored:
@@ -245,16 +273,29 @@ def format_summary(summary: Dict) -> str:
         interval("human_supported_attribution_share")))
     lines.append("  Attribution ratio human:non-human  {}".format(
         interval("attribution_ratio_human_nonhuman")))
-    if "shortcut_attribution_share" in summary:
-        lines.append("  Shortcut-role attribution share    {}".format(
-            interval("shortcut_attribution_share")))
+    if "post_decisional_attribution_share" in summary:
+        lines.append("  Post-decisional attribution share  {}  (n={} cases)".format(
+            interval("post_decisional_attribution_share"), summary.get("n_cases_attributed")))
+        lines.append("  Post-decisional share of words     {}".format(
+            interval("post_decisional_word_share")))
+    convergence = summary.get("ig_relative_delta")
+    if convergence:
+        lines.append("  IG relative delta median {:.3f}; within 5%: {:.1%}; retried: {}".format(
+            convergence["median"], convergence["share_within_5pct"],
+            "n/a" if convergence["share_retried"] is None
+            else "{:.1%}".format(convergence["share_retried"])))
 
     roles = summary.get("role_attribution_shares")
     if roles:
         lines.append("")
-        lines.append("Attribution mass by rhetorical role")
+        lines.append("Attribution mass by rhetorical role (vs share of words in that role)")
+        words = summary.get("role_word_shares", {})
         for role, share in sorted(roles.items(), key=lambda kv: -kv[1]):
-            lines.append("  {:<20} {:.1%}".format(role, share))
+            if role in words and words[role] > 0:
+                lines.append("  {:<20} {:6.1%}  words {:6.1%}  ratio {:.2f}".format(
+                    role, share, words[role], share / words[role]))
+            else:
+                lines.append("  {:<20} {:6.1%}".format(role, share))
 
     faithfulness = summary.get("faithfulness")
     if faithfulness:
@@ -302,7 +343,8 @@ def format_summary(summary: Dict) -> str:
             "Reading this: low IoU on its own is a rationale-alignment finding, not\n"
             "proof of shortcut learning. The shortcut claim rests on low alignment\n"
             "together with the Stage-2 behavioural sensitivity, and only holds if the\n"
-            "faithfulness gap above is positive."
+            "faithfulness gap above is positive. The role-level results (attribution\n"
+            "on the Analysis, adjusted for position) are in analysis/tables.md."
         )
     else:
         lines.append(

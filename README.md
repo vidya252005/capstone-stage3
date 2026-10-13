@@ -1,180 +1,151 @@
-# Legal Judgment Prediction — Shortcut Learning Audit
+# Detecting Shortcut Learning in Indian Legal Judgment Prediction
 
-Capstone project studying whether a legal judgment prediction (LJP) model trained on Indian court
-cases actually reasons from case **facts**, or whether it is shortcutting on spurious signals —
-statute citations, precedent references, ruling language — that leak the outcome into the input.
+PES University capstone project. We test whether a legal judgment prediction (LJP) model trained on
+Indian court judgments (ILDC) predicts the outcome from the **facts** of a case, or from other text in the
+judgment that already carries the outcome.
 
-The project has three stages:
+**Short answer:** it reads the outcome from the court's own reasoning. The model's accuracy comes from the
+judgment's **Analysis** section, text written by the deciding judge after, and because of, the decision.
+Statute text, which an earlier version of this project blamed, has no measurable effect. Explanation
+methods point the same way but cannot detect the problem on their own.
 
-| Stage | Question | Evidence |
-|---|---|---|
-| 1 — Training | Can we build a representative LJP model? | Accuracy, ROC-AUC |
-| 2 — Ablation | **What information does the prediction depend on?** | Behavioural: prediction shift under ablation |
-| 3 — Audit | **Is that information legally meaningful?** | Explanatory: attribution vs expert rationale |
+| Stage | Question | Method | Results |
+|---|---|---|---|
+| 1. Training | Can we build a representative LJP model? | InLegalBERT + Bi-GRU trained on ILDC | 71.46% accuracy, ROC-AUC 0.83 on PredEx |
+| 2. Behavioural ablation | Which parts of the judgment does the prediction depend on? | Rebuild each case from chosen rhetorical roles, re-predict | [STAGE2_RESULTS.md](STAGE2_RESULTS.md) |
+| 3. Explanation audit | Where does the model's attribution go, and does it match the expert rationale? | Integrated Gradients vs the PredEx expert rationale and rhetorical roles | [STAGE3_RESULTS.md](STAGE3_RESULTS.md) |
 
-Neither stage proves shortcut learning alone. The claim rests on the two together: a model whose
-predictions are highly sensitive to spurious rhetorical content *and* whose attribution does not
-align with expert-marked evidence.
+## Main findings
+
+All numbers are on the PredEx test set: 1,346 cases (1,232 High Court, 114 Supreme Court), of which
+1,308 have at least one Facts sentence.
+
+**Stage 2 (behaviour):**
+
+- Facts alone give ROC-AUC 0.62. Facts plus the Analysis section give 0.81 (70.3% accuracy), close to the
+  full judgment's 0.83 (71.5%).
+- Adding statute text changes accuracy by +0.3 pp (95% CI −1.2 to +1.8). Swapping or masking section
+  numbers barely moves predictions.
+- Six control experiments support outcome leakage. The strongest: when another case's Analysis is
+  attached to a case's own facts, P(accepted) is 0.31 higher if that other case was accepted. Removing the
+  Analysis costs 11.3 pp accuracy, against 3.9 pp for deleting the same number of random words.
+
+**Stage 3 (explanations):**
+
+- Post-decisional text (Analysis, Ratio, present-court ruling) is 43% of the words the model reads and
+  gets 51% of the Integrated Gradients attribution. Facts and statute get less than their share.
+- The attribution depends strongly on position: about 3.5 times the average at the end of the text the
+  model reads, about half in the middle. Compared with other text at the same position, the outcome-
+  stating sections still get about 1.5 times the attribution (Ratio 1.49, present-court ruling 1.61) and
+  statute 0.76, but the Analysis as a whole is no longer favoured (0.96).
+- The PredEx expert rationales are 80% Analysis and 2% facts, so agreeing with them rewards the leakage.
+  Model IoU with the rationale is 0.27, against 0.22 for random words with the same mix of roles.
+- Case by case, attribution to the Analysis barely tracks the Stage-2 behaviour (Spearman ρ ≤ 0.10).
+
+**What changed since Review 1:** the "statute is the shortcut" result came from a bug in the first
+Stage-2 script (v1). It relabelled every Statute sentence as `NONE`, and its "statute" variant was built
+from Analysis sentences. The fixed script (`opennyai_ablation_fixed.py`, changelog at the bottom) produced
+the v2 results above. The old Stage-3 run, which used the v1 Stage-2 file, is kept in
+`stage3_outputs_modal/paper/` for comparison.
 
 ## Model
 
 `HierarchicalLegalBERT` ([hierarchical_model.py](hierarchical_model.py)):
 
-- **Encoder**: [InLegalBERT](https://huggingface.co/law-ai/InLegalBERT), frozen except the last 3
-  transformer layers + pooler.
-- **Chunking**: 512-token windows, 256 stride, max 16 chunks.
-- **Aggregation**: 2-layer bidirectional GRU over per-chunk `[CLS]` embeddings, then a linear
-  classifier.
+- Encoder: [InLegalBERT](https://huggingface.co/law-ai/InLegalBERT), frozen except the last 3 layers and
+  the pooler.
+- Chunking: 512-token windows, stride 256, at most 16 chunks (about 4,350 tokens). 32.8% of PredEx
+  judgments are longer and are truncated.
+- Aggregation: a 2-layer bidirectional GRU over the chunks' `[CLS]` embeddings, then a linear classifier.
+- Checkpoint `best_hierarchical_model.pt`: epoch 4, best F1 0.732 during training. It is not in git; download it
+  from Hugging Face with `hf download Capstone-LawAI/capstone-legal --local-dir . --repo-type model`.
 
-The architecture lives in its own module so Stage 2 and Stage 3 cannot drift apart: the audit
-explains exactly the network that was trained.
+## Repository layout
 
-## Stage 2 — Behavioural ablation
+| Path | What it is |
+|---|---|
+| `hierarchical_model.py` | The model, shared by Stages 2 and 3 |
+| **Stage 2** | |
+| `opennyai_ablation_fixed.py` | OpenNyAI segmentation and the 18 v2 variants (the v2 run). Do not edit; the controls import from it |
+| `stage2_controls.py`, `modal_stage2_controls.py` | Control experiments A–F, locally or on a Modal GPU |
+| `stage2_analysis.py` | Statistics, figures and `stage2_outputs/tables.md`; also writes the Stage-3 role lookup |
+| `predex_ablation_results_v2.json`, `predex_stage2_controls.jsonl` | Per-case Stage-2 predictions (v2 run, controls) |
+| `stage2_outputs/` | Stage-2 tables, CSVs and figures |
+| **Stage 3** | |
+| `stage3/` | Audit package: rationale alignment, the Integrated Gradients adapter, metrics, reports, per-word score store |
+| `modal_stage3.py` | The GPU run on Modal: parallel shards, resumable, keeps running if the laptop disconnects |
+| `run_stage3.py` | The same audit as a command-line tool, for a local GPU |
+| `stage3_analysis.py` | CPU analysis of a finished run (role shares, position adjustment, rationale roles, Stage-2 link) |
+| `stage3_validate_paper.py` | Permutation tests, truncation and faithfulness checks |
+| `stage3_outputs_modal/paper_v2/` | The v2 Stage-3 run: per-case results, `word_scores.npz`, `analysis/`, 20 HTML heatmaps |
+| **Tests** | |
+| `test_stage2_controls.py`, `stage3/tests/`, `test_stage3.py` | No GPU or checkpoint needed |
 
-`python opennyai_ablation.py`
+`README_STAGE2.md` is the earlier, Stage-2-only README.
 
-Each case is segmented into rhetorical roles with [OpenNyAI](https://github.com/OpenNyAI/Opennyai),
-then rebuilt into 14 variants. **Every variant is a subset of the original document's sentences,
-joined in original order**, so each one is a genuine ablation rather than a regrouping.
+## Data not in git
 
-1. **Layer 1 — Graduated ablation** (`v0_facts_only` → `v25` → `v50` → `v75` → `v100_full_spu`):
-   spurious content injected at increasing fractions of the spurious **token** budget, sampled per
-   role with a fixed seed.
-2. **Layer 2 — Role-specific** (`v_analysis_only`, `v_statute_only`, `v_pre_only`,
-   `v_ruling_only`, `v_arg_rat`): one role type at a time. `v_arg_rat` is the control.
-3. **Layer 3 — Counterfactual** (`v_cf_section_fixed`, `v_cf_section_random`,
-   `v_cf_section_masked`): section numbers swapped to a fixed value, to a random different
-   section, or removed entirely.
+| File | Where it comes from |
+|---|---|
+| `best_hierarchical_model.pt` | Hugging Face, see [Model](#model) |
+| `predex_test_deduped.csv` | The deduplicated PredEx test set (1,346 rows) |
+| `predex_opennyai_raw_v2.json` | OpenNyAI segmentation cache written by `opennyai_ablation_fixed.py` |
+| `stage2_outputs/stage3_role_lookup_v2.json` | Written by `python stage2_analysis.py` from the segmentation cache (27 MB) |
 
-Reported per variant: accuracy, hard prediction shift rate with a bootstrap CI, and mean
-|ΔP(accepted)| relative to the facts-only baseline.
+Do not use `predex_opennyai_splits.json` or `predex_ablation_results.json` / `_named.json`: they are from
+the buggy v1 run.
 
-## Stage 3 — Expert-rationale audit
+## Reproducing
+
+Python 3.10+ with `torch`, `transformers`, `captum`, `pandas`, `scipy`, `scikit-learn`, `matplotlib` and
+`tqdm` (`requirements-colab.txt` lists the extras a Colab runtime needs). Modal needs its own small
+environment:
 
 ```bash
-python run_stage3.py inspect --csv predex_test_deduped.csv   # schema + alignment dry run
-python run_stage3.py audit --limit 5 --html                  # inspect 5 cases by hand
+python3 -m venv .venv-modal && .venv-modal/bin/pip install 'cbor2==5.6.5' 'modal==1.5.5'
+.venv-modal/bin/modal setup          # once, opens a browser to log in
 ```
 
-On a GPU (Google Colab T4 or the workstation), use [stage3_colab.ipynb](stage3_colab.ipynb) instead of the CLI. Upload this folder to Drive, set the runtime to GPU, and run all. InLegalBERT is pulled from Hugging Face inside the notebook; you only upload the trained `.pt`, the PredEx CSV, and the Stage-2 JSON.
-
-PredEx stores its expert annotation in the `Output` column as `<label>[ds]<rationale>`, where the
-rationale is extractive — pivotal sentences copied out of the judgment. The audit locates that text
-back in the document and compares it with the model's attribution:
-
-```
-PredEx case
-    │
-    ├── expert rationale ──> character spans ──> word mask
-    │                                               │
-    └── document ──> InLegalBERT tokens ──> 512/256 chunks
-                                                │
-                                       Integrated Gradients
-                                                │
-                              chunk attribution ──> global tokens ──> word scores
-                                                │
-                                          top-k word mask
-                                                │
-                            IoU / precision / recall / F1 / attribution share
-                                                │
-                                  + Stage-2 shortcut sensitivity
-                                                │
-                                        shortcut audit profile
-```
-
-Design decisions that matter for validity:
-
-- **Words, not sub-words, are the comparison unit.** The expert annotation is sentence-level while
-  the model works in sub-words; IoU over `constitution` + `##al` fragments would be neither
-  faithful nor readable.
-- **Attribution runs through the whole network** — tokens → BERT → `[CLS]` → Bi-GRU → classifier —
-  not just the encoder, and targets the class **logit** rather than the softmax probability.
-- **Overlapping windows are averaged onto a global token axis.** With a 256 stride most tokens
-  appear in two chunks; taking the max lets a window boundary inflate a token.
-- **Truncation is accounted for.** The model reads at most 4,350 tokens, so rationale beyond that
-  is reported as `human_words_out_of_context` and excluded from the metric rather than scored as a
-  model failure.
-- **A random-selection IoU baseline is reported next to every IoU**, because a rationale covering a
-  quarter of the document already scores ≈0.14 by chance.
-- **Faithfulness is checked, not assumed.** Masking the top-attributed words must move the
-  prediction more than masking the bottom-attributed ones, or the heatmap is not describing the
-  model's decision and no IoU computed from it means anything.
-
-Outputs land in `stage3_outputs/`: per-case `stage3_results.csv` (60+ columns), `summary.json`,
-`summary.txt`, plots, and per-case HTML heatmaps showing attribution, expert rationale and the
-context boundary over the original text.
-
-### Auditing a different model
-
-Everything architecture-specific lives in one class. To audit another LJP model, subclass
-`ModelAdapter` with `document_space`, `predict` and `attribute`; the alignment, metrics and
-reporting layers are unchanged.
-
-```python
-from stage3 import ShortcutAuditor, HierarchicalLegalBERTAdapter, load_predex
-
-adapter = HierarchicalLegalBERTAdapter.from_checkpoint("./InLegalBERT", "./best_hierarchical_model.pt")
-results = ShortcutAuditor(adapter).evaluate_dataset(load_predex("./predex_test_deduped.csv"))
-```
-
-## Results
-
-Stage-1 model: 71.46% accuracy / ROC-AUC 0.8282 on 1,346 held-out PredEx cases.
-
-Stage-2 numbers in the tables below are from the **pre-fix** run and are being regenerated; see
-*Known issues* for why they change.
-
-## Setup
-
-See [setup_workstation.sh](setup_workstation.sh) for the remote workstation bootstrap (Stage 2 / OpenNyAI).
-
-**Stage 3 on Google Colab (recommended):** open [stage3_colab.ipynb](stage3_colab.ipynb), Runtime → T4 GPU, and follow the first cell. Copy onto Drive: `stage3/`, `hierarchical_model.py`, `best_hierarchical_model.pt`, `predex_test_deduped.csv`, `predex_ablation_results.json`.
-
-Local CPU is only for the inspect/tests:
+**Stage 2** (the v2 predictions are in git, so only the analysis is needed):
 
 ```bash
-pip install -r requirements-colab.txt
-python test_stage2.py && python test_stage3.py
-python run_stage3.py inspect --csv predex_test_deduped.csv
+python stage2_analysis.py --controls predex_stage2_controls.jsonl     # about 5 minutes; --skip-probe is faster
+python stage2_controls.py --dry-run --csv predex_test_deduped.csv     # rebuilds the control variants, no GPU
+.venv-modal/bin/modal run --detach modal_stage2_controls.py           # reruns the controls on a GPU (costs money)
 ```
 
-## Known issues fixed in the current code
+**Stage 3:**
 
-Stage-2 results produced before these fixes should be regenerated:
+```bash
+.venv-modal/bin/modal run modal_stage3.py --limit 20 --shards 2       # smoke test, a few minutes
+.venv-modal/bin/modal run --detach modal_stage3.py --paper            # full run: 8 L4 GPUs, about 2 hours
+python stage3_analysis.py --run-dir stage3_outputs_modal/paper_v2     # CPU: tables and figures
+python stage3_validate_paper.py                                       # CPU: validation report
+```
 
-| Issue | Effect |
-|---|---|
-| `STA` and `ISSUE` missing from `KNOWN_ROLES` | OpenNyAI emits 13 labels; anything unlisted was coerced to `NONE`, so **every statute sentence was silently dropped from all variants**. The old `v_sta_only` was built from `ANALYSIS`, so the "statute analysis is the dominant shortcut" result was measuring court reasoning, not statute text. |
-| `RCJ` referenced but never emitted | `role_buckets.get('RCJ')` always returned empty; the role does not exist in the taxonomy. |
-| `v_full` regrouped sentences by role | The "full text" baseline was facts-block, then arguments-block, then analysis-block — not the judgment. Variants are now ordered subsets. |
-| Doses counted sentences | Sentence lengths span an order of magnitude, so "25% of sentences" could be 70% of the tokens. Now dosed by token budget, stratified by role, seeded. |
-| Always took `spurious[:n]` | Dose was confounded with position in the document. Now randomly sampled with a fixed seed. |
-| Single `Section 144` counterfactual | Swaps one meaningful legal reference for another, so it cannot show the *number* is a shortcut. Now three variants separating "which section" from "any section". |
-| Hard label shift only | Treated 0.49→0.51 as a total reversal and 0.51→0.99 as no change. Now reports mean \|ΔP\| alongside. |
-| `>10% = STRONG shortcut evidence` | An uncalibrated threshold. Replaced with rates and bootstrap CIs. |
-| `nn.Module.load_state_dict` monkey-patched to `strict=False` globally | Hid genuine checkpoint mismatches for every module in the process. Now an explicit non-strict load that reports missing/unexpected keys. |
-| Case names recorded as `case_0`, `case_1`, … | `itertuples()` renames `Case Name`; Stage 3 then had only row position to join on. Now read from the column directly. |
+The full Stage-3 run saves checkpoints on the Modal volume `stage3-outputs`. Rerunning the same command
+resumes. If the terminal disconnects, the run continues, and the result can be fetched with
+`.venv-modal/bin/modal volume get stage3-outputs paper_v2/stage3_paper_v2.zip stage3_outputs_modal/`.
 
-## Files
+**Tests:**
 
-| File | Purpose |
-|---|---|
-| `hierarchical_model.py` | The InLegalBERT + Bi-GRU model, shared by Stage 2 and Stage 3 |
-| `opennyai_ablation.py` | Stage 2: segmentation, variant construction, inference, analysis, plots |
-| `stage3/` | Stage 3 audit package (see below) |
-| `stage3_colab.ipynb` | Colab notebook: GPU Integrated Gradients audit |
-| `run_stage3.py` | Stage-3 CLI (workstation; same pipeline as the notebook) |
-| `requirements-colab.txt` | Captum + extras; Colab already has torch/transformers |
-| `test_stage2.py`, `test_stage3.py` | Regression suites (109 checks, no GPU or checkpoint needed) |
-| `predex_ablation_results.json` | Per-case Stage-2 predictions |
-| `requirements.txt` | Pinned dependencies (version-sensitive `spacy`/`opennyai`/`pydantic` stack) |
+```bash
+python -m pytest stage3/tests test_stage2_controls.py -q
+python test_stage3.py --model law-ai/InLegalBERT       # adapter and chunking checks, downloads the tokenizer
+```
 
-| `stage3/` module | Purpose |
-|---|---|
-| `config.py` | Chunking, alignment and audit constants, kept in sync with Stage 1/2 |
-| `predex.py` | PredEx loading and `<label>[ds]<rationale>` parsing |
-| `alignment.py` | Rationale span matching, word/token/chunk coordinate system |
-| `adapters.py` | `ModelAdapter` interface + the InLegalBERT implementation |
-| `metrics.py` | IoU, precision/recall/F1, attribution shares, faithfulness, correlations |
-| `audit.py` | `ShortcutAuditor` and the Stage-2 join |
-| `report.py` | Summary, HTML heatmaps, plots |
+## Stage-3 method in brief
+
+1. The PredEx expert rationale (sentences copied out of the judgment) and the OpenNyAI rhetorical roles
+   are located in the document and turned into word masks.
+2. Integrated Gradients explains the model's decision margin (predicted logit minus the other), through
+   BERT, the Bi-GRU and the classifier, from a PAD baseline. Overlapping chunks are averaged onto words.
+   Cases whose attributions do not add up to the margin change within 5% are recomputed with 128 steps.
+3. Only the text the model actually reads is scored. Rationale beyond the 16-chunk window is excluded,
+   not counted as a model failure.
+4. Every IoU comes with a random baseline and a role-matched baseline. A faithfulness test checks that
+   masking the top-attributed words moves the decision more than masking the bottom-attributed ones.
+5. Per-word scores are saved, so every analysis after the GPU run is CPU-only.
+
+To audit a different model, subclass `ModelAdapter` in `stage3/adapters.py` (`document_space`,
+`predict`, `attribute`). Alignment, metrics and reporting stay unchanged.

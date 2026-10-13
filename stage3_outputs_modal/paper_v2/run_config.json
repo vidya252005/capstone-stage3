@@ -1,0 +1,27 @@
+{
+  "run": "paper_v2",
+  "finished_utc": "2026-10-13T08:48:34.756426+00:00",
+  "encoder": "law-ai/InLegalBERT",
+  "checkpoint_epoch": 4,
+  "checkpoint_best_f1": 0.7318554380600502,
+  "gpu": "NVIDIA L4",
+  "n_shards": 8,
+  "n_cases": 1346,
+  "n_cases_with_word_scores": 1346,
+  "ig_steps": 32,
+  "ig_steps_retry": 128,
+  "ig_max_relative_delta": 0.05,
+  "ig_baseline": "pad (CLS/SEP kept)",
+  "faithfulness": true,
+  "gpu_seconds_total": 45392.0,
+  "stage2_path": "predex_ablation_results_v2.json",
+  "controls_path": "predex_stage2_controls.jsonl",
+  "role_lookup_path": "stage2_outputs/stage3_role_lookup_v2.json",
+  "chunking": "512/256/16",
+  "attribution_target": "decision margin (predicted logit minus other logit)",
+  "post_decisional_roles": [
+    "ANALYSIS",
+    "RATIO",
+    "RPC"
+  ]
+}

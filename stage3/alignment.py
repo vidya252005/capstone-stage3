@@ -244,7 +244,7 @@ class DocumentSpace:
         For each global token, the word it belongs to (-1 if it maps to none).
     chunks
         ``(input_ids, attention_mask)`` pairs, byte-identical to the ones the trained
-        model consumes in ``opennyai_ablation.chunk_text``.
+        model consumes in ``opennyai_ablation_fixed.chunk_text``.
     chunk_token_to_global
         ``chunk_token_to_global[c][p]`` is the global token index at position ``p`` of
         chunk ``c``, or -1 for ``[CLS]``/``[SEP]``/``[PAD]``.
@@ -309,7 +309,7 @@ class DocumentSpace:
 def build_document_space(document: str, tokenizer) -> DocumentSpace:
     """Tokenise a document once and derive words, tokens, chunks and their mappings.
 
-    The chunking here must stay identical to ``opennyai_ablation.chunk_text``: 510
+    The chunking here must stay identical to ``opennyai_ablation_fixed.chunk_text``: 510
     real tokens between ``[CLS]``/``[SEP]``, a stride of ``STRIDE``, padded to
     ``CHUNK_SIZE``, capped at ``MAX_CHUNKS``.
     """

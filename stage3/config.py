@@ -1,12 +1,12 @@
 """Shared configuration for the Stage-3 shortcut audit.
 
-Chunking values must stay identical to the Stage-1/2 model in ``opennyai_ablation.py``
+Chunking values must stay identical to the Stage-1/2 model in ``opennyai_ablation_fixed.py``
 (512-token windows, 256 stride, 16 chunks max) or the attribution map will not line up
 with what the trained model actually saw.
 """
 from __future__ import annotations
 
-# ── Model / chunking (must mirror opennyai_ablation.py) ──────────────────────
+# ── Model / chunking (must mirror opennyai_ablation_fixed.py) ──────────────────────
 CHUNK_SIZE = 512
 STRIDE = 256
 MAX_CHUNKS = 16
@@ -30,6 +30,11 @@ MIN_SENTENCE_CHARS = 30
 # ── Attribution ──────────────────────────────────────────────────────────────
 IG_STEPS = 32
 IG_INTERNAL_BATCH = 4
+# IG completeness check: |sum(attributions) - (F(x) - F(baseline))| / max(|F(x) - F(baseline)|, 1).
+# The floor of 1 log-odds unit stops near-zero gaps from making tiny absolute errors look
+# huge. Cases above this are recomputed with IG_STEPS_RETRY steps (the better run is kept).
+IG_MAX_RELATIVE_DELTA = 0.05
+IG_STEPS_RETRY = 128
 # Multiple thresholds are reported so no single arbitrary cut drives the finding.
 TOPK_PERCENTS = (0.05, 0.10, 0.20)
 
@@ -59,6 +64,7 @@ KNOWN_ROLES = [
     "NONE",
 ]
 
-# Roles treated as potential shortcut carriers. Used for the shortcut attribution
-# share: the fraction of total attribution mass landing inside these roles.
-SHORTCUT_ROLES = ["ANALYSIS", "STA", "PRE_RELIED", "PRE_NOT_RELIED", "RLC", "RPC"]
+# Post-decisional (outcome-bearing) text: written by the deciding court after, and
+# because of, the decision. Stage 2 v2 found the model's accuracy comes from these
+# (STAGE2_RESULTS.md Section 5). Used for the pooled post-decisional attribution share.
+POST_DECISIONAL_ROLES = ["ANALYSIS", "RATIO", "RPC"]

@@ -1,0 +1,178 @@
+====================================================================
+STAGE 3 - SHORTCUT LEARNING AUDIT
+====================================================================
+Cases evaluated        : 1346
+Cases scored (ok)      : 1182
+Cases with IoU filled  : 1191  (ok + low_rationale_coverage; headline IoU uses ok only)
+Accuracy               : 71.55%
+
+Case status
+  low_rationale_coverage     9
+  ok                         1182
+  rationale_out_of_context   155
+
+Expert-rationale alignment quality
+  mean coverage            0.986
+  median coverage          1.000
+  cases >=95% coverage     96.5%
+  cases <50% coverage      0.7%
+  documents truncated      32.8%
+  rationale words outside model context  34.4%
+
+Human-rationale alignment (mean [95% CI])
+  IoU @ human-size       0.267  [0.259, 0.274]
+  IoU @ random baseline  0.166  [0.159, 0.173]
+  Precision              0.404  [0.394, 0.414]
+  Recall                 0.404  [0.394, 0.414]
+  F1                     0.404  [0.394, 0.414]
+  IoU median             0.277
+  IoU | correct preds    0.268  (n=858)
+  IoU | incorrect preds  0.264  (n=324)
+  IoU @ top 05%        0.094  [0.091, 0.097]
+  IoU @ top 10%        0.149  [0.145, 0.153]
+  IoU @ top 20%        0.211  [0.206, 0.216]
+
+Threshold-free attribution measures
+  Human-supported attribution share  0.393  [0.383, 0.404]
+  Attribution ratio human:non-human  2.263  [2.182, 2.343]
+  Post-decisional attribution share  0.505  [0.494, 0.515]  (n=1346 cases)
+  Post-decisional share of words     0.424  [0.413, 0.434]
+  IG relative delta median 0.023; within 5%: 83.3%; retried: 75.1%
+
+Attribution mass by rhetorical role (vs share of words in that role)
+  ANALYSIS              45.7%  words  41.1%  ratio 1.11
+  FAC                   22.7%  words  28.9%  ratio 0.78
+  PRE_RELIED             9.7%  words  10.0%  ratio 0.97
+  ARG_PETITIONER         8.7%  words   9.5%  ratio 0.91
+  RATIO                  7.8%  words   2.2%  ratio 3.46
+  RLC                    7.5%  words   9.2%  ratio 0.81
+  STA                    7.3%  words  12.3%  ratio 0.59
+  RPC                    5.9%  words   2.4%  ratio 2.48
+  ARG_RESPONDENT         4.1%  words   4.4%  ratio 0.94
+  PRE_NOT_RELIED         2.4%  words   1.2%  ratio 1.96
+  ISSUE                  2.2%  words   2.5%  ratio 0.87
+  NONE                   1.8%  words   1.2%  ratio 1.46
+  PREAMBLE               1.5%  words   1.5%  ratio 1.00
+
+Faithfulness (masking top vs bottom attributed words)
+  mean logit drop, top     1.0306
+  mean logit drop, bottom  0.1064
+  mean gap (want > 0)      0.9242
+  cases passing            75.0%
+
+Attribution quality
+  IG convergence delta  mean 0.0484 / max 0.3417
+
+Stage-2 shortcut sensitivity vs Stage-3 alignment
+  join      row_index
+  measure   shortcut_delta_prob_max
+  n         1149
+  Spearman  rho = -0.054  (p = 0.068)
+  Pearson   r   = -0.060  (p = 0.043)
+
+  Mean IoU by Stage-2 shortcut tercile
+    low_shortcut       n=383   IoU=0.276  (shift=0.170)
+    medium_shortcut    n=383   IoU=0.265  (shift=0.332)
+    high_shortcut      n=383   IoU=0.251  (shift=0.548)
+
+--------------------------------------------------------------------
+Reading this: low IoU on its own is a rationale-alignment finding, not
+proof of shortcut learning. The shortcut claim rests on low alignment
+together with the Stage-2 behavioural sensitivity, and only holds if the
+faithfulness gap above is positive. The role-level results (attribution
+on the Analysis, adjusted for position) are in analysis/tables.md.
+--------------------------------------------------------------------
+
+====================================================================
+VALIDATION / DISCREPANCY RESOLUTION
+====================================================================
+PredEx CSV has 1346 rows but only 1345 unique Case Names: 'STATE OF KARNATAKA Vs. A.B.MAHESHA ETC' appears twice with different Input text (row_index 1151 and 1152). Stage-2 also has two entries under that title. Joining Stage-2 on case_id alone produced a 2×2 Cartesian product (4 rows), so 1346−2+4=1348. Canonical table joins on row_index instead (1:1).
+
+Canonical PredEx cases     : 1346
+Unique Case Names          : 1345
+Headline scored (ok)       : 1182
+CSV IoU non-null           : 1191
+Summary 'Cases scored' counts audit_status=='ok' only. IoU is still written for low_rationale_coverage (computed, then flagged), so CSV iou.notna() is larger (ok + low_coverage). rationale_out_of_context has no IoU.
+
+Exclusions
+  ok                         1182
+  rationale_out_of_context   155
+  low_rationale_coverage     9
+Cases where fewer than 5 expert-rationale words fall inside the model's 16-chunk window are rationale_out_of_context. Cases where rationale character coverage in the document is <50% are low_rationale_coverage. Neither enters headline IoU means. In the v2 run, out-of-context cases are still attributed (role shares and faithfulness), they only lack IoU.
+
+Length vs exclusion
+  mean n_words (ok)          2543
+  mean n_words (OOC)         6032
+  pct truncated (ok)         24.0%
+  pct truncated (OOC)        100.0%
+
+Faithfulness subgroups (ok cases)
+  faithful_gap_gt_0: n=886  IoU=0.272  shortcut=0.364
+  nonfaithful_gap_le_0: n=296  IoU=0.251  shortcut=0.309
+
+Truncation (ok cases)
+  truncated_and_ok: n=284  IoU=0.165  cov=0.985  shortcut=0.392  acc=0.683
+  not_truncated_and_ok: n=898  IoU=0.299  cov=0.992  shortcut=0.336  acc=0.739
+
+IoU vs random (Monte Carlo + permutation on mean gap)
+  n_cases: 1182
+  mean_model_iou: 0.2665
+  mean_random_iou_mc: 0.1663
+  mean_gap_model_minus_random: 0.1002
+  fraction_cases_model_gt_random_mean: 0.8655
+  fraction_cases_model_ge_random_p95: 0.7995
+  permutation_p_one_sided_mean_gap: 0.0
+  n_perm: 5000
+  n_mc_per_case: 200
+
+Stage-2 ↔ Stage-3 correlation permutation
+  n: 1149
+  observed_spearman: -0.0539
+  observed_pearson: -0.0597
+  spearman_p_analytic: 0.068
+  pearson_p_analytic: 0.043
+  permutation_p_two_sided_spearman: 0.0628
+  null_mean: -0.0007
+  null_std: 0.0292
+  n_perm: 5000
+
+Shortcut terciles (canonical)
+  low_shortcut: n=383  IoU=0.276  shortcut=0.170
+  medium_shortcut: n=383  IoU=0.265  shortcut=0.332
+  high_shortcut: n=383  IoU=0.251  shortcut=0.548
+
+Attribution stability proxy (IG convergence delta)
+  IG completeness gap |sum(attr) - (F(x) - F(baseline))| in logit units. The v2 run also stores it relative to max(|F(x) - F(baseline)|, 1) and recomputes cases above 5% with 128 steps.
+  n: 1182
+  mean: 0.0484
+  median: 0.0366
+  p90: 0.1054
+  max: 0.3417
+  fraction_delta_gt_0_25: 0.0042
+  fraction_delta_gt_0_50: 0.0
+  relative_median: 0.0224
+  relative_max: 0.3417
+  fraction_relative_within_5pct: 0.8359
+  fraction_recomputed_128_steps: 0.7453
+
+Manual heatmap picks (inspect explanations/)
+  [low]
+    IoU=0.000 correct=False html=False  Ajay Aggarwal Vs. Union of India &amp; Others
+    IoU=0.000 correct=True html=False  Ashok Ambo Sangade &amp; Others Vs. The State of Maharashtra
+    IoU=0.000 correct=True html=False  Syndicate Bank Vs. The General Secretary, Syndicate Bank Stff Association and Another
+    IoU=0.000 correct=False html=False  Saroj Kumar Poddar Vs. State (Nct Of Delhi)
+    IoU=0.000 correct=True html=False  Balbir Singh and Another Vs. State of Punjab
+  [medium]
+    IoU=0.276 correct=True html=False  Vijay Pandurang Palaskar Vs. The State of Maharashtra
+    IoU=0.276 correct=True html=False  Zile Singh Vs. State (Delhi Administration)
+    IoU=0.277 correct=True html=False  Kuldeep Singh Vs. State of Haryana
+    IoU=0.277 correct=False html=False  Ram Narain Vs. State of Uttar Pradesh
+    IoU=0.277 correct=True html=False  Om Prakash Singh Vs. The State of Bihar and Ors
+  [high]
+    IoU=0.416 correct=True html=False  Bakhshish Singh Vs. State of Punjab
+    IoU=0.417 correct=True html=False  UMA SHANKAR GOPALIKA Vs. STATE OF BIHAR
+    IoU=0.418 correct=True html=False  Prakash Mahadeo Godse Vs. State of Maharashtra
+    IoU=0.418 correct=True html=False  Sadashiv Bajrang Sutar Vs. State of Maharashtra
+    IoU=0.418 correct=False html=False  Shrinivas @ Shenu Shirsappa Ayyappa Swami and Others Vs. The State of Maharashtra
+
+STAGE 3 METHODOLOGY — TREAT AS FROZEN after reviewing this report.

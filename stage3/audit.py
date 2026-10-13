@@ -24,7 +24,7 @@ from .alignment import DocumentSpace, align_rationale, select_top_words
 from .config import (
     MIN_RATIONALE_COVERAGE,
     MIN_VISIBLE_HUMAN_WORDS,
-    SHORTCUT_ROLES,
+    POST_DECISIONAL_ROLES,
     TOPK_PERCENTS,
 )
 from .metrics import (
@@ -47,7 +47,10 @@ class CaseAudit:
     human_mask: Optional[np.ndarray] = None
     model_mask: Optional[np.ndarray] = None
     word_scores: Optional[np.ndarray] = None
+    word_scores_signed: Optional[np.ndarray] = None
     spans: List = field(default_factory=list)
+    eligible: Optional[np.ndarray] = None
+    role_masks: Dict[str, np.ndarray] = field(default_factory=dict)
 
 
 class ShortcutAuditor:
@@ -120,6 +123,7 @@ class ShortcutAuditor:
                 "prediction_confidence": round(float(prediction.confidence), 4),
                 "prob_positive": round(float(prediction.probabilities[1]), 6),
                 "logit_predicted": round(prediction.logit(prediction.label), 6),
+                "margin_predicted": round(prediction.margin(prediction.label), 6),
                 "correct": bool(prediction.label == case.label),
             }
         )
@@ -129,18 +133,13 @@ class ShortcutAuditor:
             record["audit_status"] = "no_visible_words"
             self.records.append(record)
             return CaseAudit(record=record)
-        if human_visible.sum() < MIN_VISIBLE_HUMAN_WORDS:
-            # Scoring these as IoU=0 would blame the model for an annotation that is
-            # not inside its context window at all.
-            record["audit_status"] = (
-                "rationale_out_of_context"
-                if human_mask.sum() >= MIN_VISIBLE_HUMAN_WORDS
-                else "rationale_unresolved"
-            )
-            self.records.append(record)
-            return CaseAudit(record=record, space=space, human_mask=human_mask)
+        n_human = int(human_visible.sum())
+        rationale_visible = n_human >= MIN_VISIBLE_HUMAN_WORDS
 
         # ── attribution ─────────────────────────────────────────────────────
+        # Run for every case the model can see, including those whose rationale is
+        # outside the window: where attribution lands by rhetorical role does not
+        # need the rationale, and skipping them would drop the longest judgments.
         attribution = self.adapter.attribute(
             case.document,
             space=space,
@@ -150,59 +149,69 @@ class ShortcutAuditor:
         record.update(attribution.to_dict())
         scores = attribution.word_scores
 
-        # ── overlap at several selection sizes ──────────────────────────────
-        n_eligible = int(eligible.sum())
-        n_human = int(human_visible.sum())
-        selections: Dict[str, int] = {"human_size": n_human}
-        for percent in self.topk_percents:
-            selections["p{:02d}".format(int(round(percent * 100)))] = max(
-                1, int(round(percent * n_eligible))
-            )
-
+        # ── overlap with the expert rationale at several selection sizes ────
         primary_mask = None
-        for name, k in selections.items():
-            model_mask = select_top_words(scores, eligible, k)
-            overlap = binary_overlap(model_mask, human_visible)
-            suffix = "" if name == self.primary_selection else "_" + name
-            record["iou" + suffix] = round(overlap["iou"], 4)
-            record["precision" + suffix] = round(overlap["precision"], 4)
-            record["recall" + suffix] = round(overlap["recall"], 4)
-            record["f1" + suffix] = round(overlap["f1"], 4)
-            record["iou_random" + suffix] = round(
-                expected_random_iou(int(model_mask.sum()), n_human, n_eligible), 4
-            )
-            if name == self.primary_selection:
-                primary_mask = model_mask
-                record["model_words_selected"] = int(model_mask.sum())
+        if rationale_visible:
+            n_eligible = int(eligible.sum())
+            selections: Dict[str, int] = {"human_size": n_human}
+            for percent in self.topk_percents:
+                selections["p{:02d}".format(int(round(percent * 100)))] = max(
+                    1, int(round(percent * n_eligible))
+                )
+            for name, k in selections.items():
+                model_mask = select_top_words(scores, eligible, k)
+                overlap = binary_overlap(model_mask, human_visible)
+                suffix = "" if name == self.primary_selection else "_" + name
+                record["iou" + suffix] = round(overlap["iou"], 4)
+                record["precision" + suffix] = round(overlap["precision"], 4)
+                record["recall" + suffix] = round(overlap["recall"], 4)
+                record["f1" + suffix] = round(overlap["f1"], 4)
+                record["iou_random" + suffix] = round(
+                    expected_random_iou(int(model_mask.sum()), n_human, n_eligible), 4
+                )
+                if name == self.primary_selection:
+                    primary_mask = model_mask
+                    record["model_words_selected"] = int(model_mask.sum())
 
-        # ── threshold-free measures ─────────────────────────────────────────
-        record["human_supported_attribution_share"] = round(
-            attribution_mass_share(scores, human_visible, eligible), 4
-        )
-        record.update(
-            {
-                k: (None if not np.isfinite(v) else round(float(v), 6))
-                for k, v in mean_attribution_inside_outside(
-                    scores, human_visible, eligible
-                ).items()
-            }
-        )
+            # ── threshold-free measures ─────────────────────────────────────
+            record["human_supported_attribution_share"] = round(
+                attribution_mass_share(scores, human_visible, eligible), 4
+            )
+            record.update(
+                {
+                    k: (None if not np.isfinite(v) else round(float(v), 6))
+                    for k, v in mean_attribution_inside_outside(
+                        scores, human_visible, eligible
+                    ).items()
+                }
+            )
 
         # ── rhetorical-role attribution shares ──────────────────────────────
         role_masks = self._role_masks(case, space)
         if role_masks:
-            shares = role_attribution_shares(scores, role_masks, eligible, SHORTCUT_ROLES)
+            shares = role_attribution_shares(
+                scores, role_masks, eligible, POST_DECISIONAL_ROLES
+            )
             record.update({k: round(v, 4) for k, v in shares.items()})
 
         # ── faithfulness ────────────────────────────────────────────────────
-        if self.run_faithfulness and primary_mask is not None:
+        if self.run_faithfulness:
             record.update(self._faithfulness(space, scores, eligible, prediction))
 
-        record["audit_status"] = (
-            "ok"
-            if alignment.coverage >= MIN_RATIONALE_COVERAGE
-            else "low_rationale_coverage"
-        )
+        if not rationale_visible:
+            # No IoU for these: scoring them as IoU=0 would blame the model for an
+            # annotation that is not inside its context window at all.
+            record["audit_status"] = (
+                "rationale_out_of_context"
+                if human_mask.sum() >= MIN_VISIBLE_HUMAN_WORDS
+                else "rationale_unresolved"
+            )
+        else:
+            record["audit_status"] = (
+                "ok"
+                if alignment.coverage >= MIN_RATIONALE_COVERAGE
+                else "low_rationale_coverage"
+            )
         self.records.append(record)
 
         return CaseAudit(
@@ -211,7 +220,10 @@ class ShortcutAuditor:
             human_mask=human_visible if keep_arrays else None,
             model_mask=primary_mask if keep_arrays else None,
             word_scores=scores if keep_arrays else None,
+            word_scores_signed=attribution.word_scores_signed if keep_arrays else None,
             spans=alignment.spans if keep_arrays else [],
+            eligible=eligible if keep_arrays else None,
+            role_masks=role_masks if keep_arrays else {},
         )
 
     # ── helpers ─────────────────────────────────────────────────────────────
@@ -221,9 +233,11 @@ class ShortcutAuditor:
         The Stage-2 segmentation stores role sentences as text, so they are located in
         the document with exactly the same alignment machinery as the expert rationale.
         """
-        buckets = self.role_lookup.get(case.case_id)
+        # Row index first: case names are not unique in PredEx (one title appears
+        # twice), so a name lookup would hand one of those cases the other's roles.
+        buckets = self.role_lookup.get(str(case.index))
         if not buckets:
-            buckets = self.role_lookup.get(str(case.index))
+            buckets = self.role_lookup.get(case.case_id)
         if not buckets:
             return {}
         masks: Dict[str, np.ndarray] = {}
@@ -243,10 +257,12 @@ class ShortcutAuditor:
         target = prediction.label
         top_prediction = self.adapter.predict_with_words_masked(space, top_mask)
         bottom_prediction = self.adapter.predict_with_words_masked(space, bottom_mask)
+        # Measured on the same quantity the attribution explains.
+        mode = getattr(self.adapter, "target_mode", "logit")
         result = faithfulness_scores(
-            prediction.logit(target),
-            top_prediction.logit(target),
-            bottom_prediction.logit(target),
+            prediction.score(target, mode),
+            top_prediction.score(target, mode),
+            bottom_prediction.score(target, mode),
         )
         result["faithfulness_flip_top"] = bool(top_prediction.label != target)
         result["faithfulness_flip_bottom"] = bool(bottom_prediction.label != target)
@@ -313,7 +329,15 @@ def _positive_probability(entry: Dict[str, object]) -> float:
 # facts rather than adding spurious content, and v_full is the reference document.
 # Older Stage-2 JSON used ``v_counterfactual`` (not the ``v_cf_*`` prefix), so that
 # name must be excluded explicitly or it contaminates shortcut_delta_prob_max.
-_NON_SPURIOUS_VARIANTS = ("v_full", "v_counterfactual")
+# The v2 run adds three more reference/perturbation variants: v_raw (the original
+# document), v_facts_masked (facts removed) and v_sta_only_cf (a counterfactual).
+_NON_SPURIOUS_VARIANTS = (
+    "v_full",
+    "v_counterfactual",
+    "v_raw",
+    "v_facts_masked",
+    "v_sta_only_cf",
+)
 
 
 def attach_stage2_measures(results_df, stage2_json: str):
@@ -365,7 +389,11 @@ def attach_stage2_measures(results_df, stage2_json: str):
             )
             row["shift_" + variant] = flipped
             row["delta_prob_" + variant] = delta
-            if not variant.startswith("v_cf") and variant not in _NON_SPURIOUS_VARIANTS:
+            if (
+                not variant.startswith("v_cf")
+                and not variant.endswith("_cf")
+                and variant not in _NON_SPURIOUS_VARIANTS
+            ):
                 shifts.append(delta)
         finite = [s for s in shifts if np.isfinite(s)]
         row["shortcut_delta_prob_max"] = max(finite) if finite else np.nan
@@ -458,10 +486,10 @@ def load_role_lookup(splits_json: str) -> Dict[str, Dict[str, List[str]]]:
     """Load OpenNyAI role buckets keyed by case name (and by index as a fallback).
 
     Missing the file is not treated as "no roles" silently: without it,
-    ``role_share_*`` and ``shortcut_attribution_share`` are never computed and the
-    Stage-2/Stage-3 role linkage -- the part of the audit that actually connects
-    "statute-analysis is the dominant shortcut" (Stage 2) to "the model's attribution
-    lands on statute-analysis text" (Stage 3) -- silently disappears from the report
+    ``role_share_*`` and ``post_decisional_attribution_share`` are never computed and the
+    Stage-2/Stage-3 role linkage -- the part of the audit that connects "adding a
+    role's text changes the prediction" (Stage 2) to "the model's attribution lands
+    on that role's text" (Stage 3) -- silently disappears from the report
     with no error and no column to notice is absent. A loud warning here is cheap;
     a results table that looks complete but is quietly missing its central comparison
     is not.
@@ -469,9 +497,9 @@ def load_role_lookup(splits_json: str) -> Dict[str, Dict[str, List[str]]]:
     if not os.path.exists(splits_json):
         print(
             "WARNING: role-lookup file '{}' not found. Role-based shortcut analysis "
-            "(role_share_*, shortcut_attribution_share) will be SKIPPED for every "
+            "(role_share_*, post_decisional_attribution_share) will be SKIPPED for every "
             "case -- this run will not test whether attribution concentrates on "
-            "statute-analysis text. Generate it (Stage-2/OpenNyAI side) and pass "
+            "particular rhetorical roles. Generate it (Stage-2/OpenNyAI side) and pass "
             "its real path if you need that comparison.".format(splits_json)
         )
         return {}

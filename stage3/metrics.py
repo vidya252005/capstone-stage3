@@ -102,9 +102,9 @@ def role_attribution_shares(
     scores: np.ndarray,
     role_masks: Dict[str, np.ndarray],
     eligible: np.ndarray,
-    shortcut_roles: Sequence[str],
+    pooled_roles: Sequence[str],
 ) -> Dict[str, float]:
-    """Attribution mass per rhetorical role, plus the pooled shortcut-role share.
+    """Attribution mass per rhetorical role, plus the pooled post-decisional share.
 
     This is what lets Stage 2 and Stage 3 talk to each other: Stage 2 shows that adding
     a role changes the prediction, and this shows whether the model's attribution
@@ -119,13 +119,18 @@ def role_attribution_shares(
         shares["role_share_" + role] = float(
             scores[np.logical_and(mask, eligible)].sum() / total
         )
-    shortcut = np.zeros_like(eligible)
-    for role in shortcut_roles:
+        # The share a role would get if attribution were spread evenly over words;
+        # a role_share well above its role_words share means attribution concentrates there.
+        shares["role_words_" + role] = float(
+            np.logical_and(mask, eligible).sum() / max(1, eligible.sum())
+        )
+    pooled = np.zeros_like(eligible)
+    for role in pooled_roles:
         if role in role_masks:
-            shortcut |= role_masks[role]
-    shares["shortcut_attribution_share"] = float(
-        scores[np.logical_and(shortcut, eligible)].sum() / total
-    )
+            pooled |= role_masks[role]
+    pooled &= eligible
+    shares["post_decisional_attribution_share"] = float(scores[pooled].sum() / total)
+    shares["post_decisional_word_share"] = float(pooled.sum() / max(1, eligible.sum()))
     return shares
 
 
